@@ -1,0 +1,23 @@
+{
+  "name": "mspreact",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview"
+  },
+  "dependencies": {
+    "lucide-react": "^1.38.0",
+    "react": "^19.1.1",
+    "react-dom": "^19.1.1",
+    "react-router-dom": "^7.18.3"
+  },
+  "devDependencies": {
+    "@tailwindcss/vite": "^4.1.12",
+    "@vitejs/plugin-react": "^5.0.2",
+    "tailwindcss": "^4.1.12",
+    "vite": "^7.1.3"
+  }
+}
