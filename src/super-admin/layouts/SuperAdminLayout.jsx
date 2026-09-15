@@ -3,6 +3,7 @@ import {
   FileText,
   LayoutDashboard,
   LineChart,
+  MessageSquare,
   ScrollText,
   Settings,
   Shield,
@@ -19,6 +20,7 @@ const links = [
   { to: "/super-admin/users", icon: Users, label: "Users" },
   { to: "/super-admin/roles", icon: Shield, label: "Roles" },
   { to: "/super-admin/orders", icon: ShoppingBag, label: "Orders" },
+  { to: "/super-admin/support", icon: MessageSquare, label: "Support" },
   { to: "/super-admin/cms", icon: FileText, label: "CMS" },
   { to: "/super-admin/analytics", icon: LineChart, label: "Analytics" },
   { to: "/super-admin/audit", icon: ScrollText, label: "Audit" },
@@ -33,7 +35,7 @@ export default function SuperAdminLayout() {
         links={links}
         homeTo="/"
         homeLabel="← Storefront"
-        loginTo="/super-admin/login"
+        loginTo="/login"
         sidebarClass="bg-msr-navy-dark"
       />
     </RequireAuth>

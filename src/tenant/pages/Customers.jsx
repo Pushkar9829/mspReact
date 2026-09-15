@@ -1,35 +1,38 @@
-export default function SellerCustomers() {
-  const rows = [
-    { name: "Retail Mart", city: "Delhi", orders: 42, spend: "₹1.8 L" },
-    { name: "Kirana Plus", city: "Mumbai", orders: 28, spend: "₹96,400" },
-    { name: "City Foods", city: "Pune", orders: 19, spend: "₹64,200" },
-    { name: "Daily Needs", city: "Bengaluru", orders: 11, spend: "₹22,800" },
-  ];
+import { api } from "../../shared/api.js";
+import { inr, formatDate } from "../../shared/lib/format.js";
+import { rowsOf } from "../../shared/auth.js";
+import { useApi } from "../../shared/hooks/useApi.js";
+import { useListQuery } from "../../shared/hooks/useListQuery.js";
+import { PanelState, PanelTable } from "../../shared/components/PanelTable.jsx";
+import { PanelPager, PanelToolbar, StatusBadge } from "../../shared/components/PanelKit.jsx";
+import { metaOf, rowId } from "../../shared/lib/panel.js";
+
+export default function Customers() {
+  const { q, setQ, page, setPage, reset, query } = useListQuery();
+  const { data, error, loading } = useApi(() => api.reportsCustomers(query), [query]);
+  const rows = rowsOf(data);
+
   return (
     <div>
       <h1 className="text-2xl font-extrabold">Customers</h1>
-      <div className="mt-5 overflow-x-auto rounded-2xl bg-white shadow-sm">
-        <table className="w-full text-left text-sm">
-          <thead className="bg-msr-bg text-msr-muted">
-            <tr>
-              <th className="px-4 py-3">Retailer</th>
-              <th>City</th>
-              <th>Orders</th>
-              <th>Lifetime spend</th>
-            </tr>
-          </thead>
-          <tbody>
-            {rows.map((r) => (
-              <tr key={r.name} className="border-t border-msr-border">
-                <td className="px-4 py-3 font-semibold">{r.name}</td>
-                <td>{r.city}</td>
-                <td>{r.orders}</td>
-                <td>{r.spend}</td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
+      <p className="mt-1 text-sm text-msr-muted">Retailers who have ordered from this store.</p>
+      <PanelToolbar search={q} onSearch={setQ} searchPlaceholder="Name, email, phone" onReset={reset} />
+      <PanelState loading={loading && !data} error={error} empty={!rows.length} emptyText="No buyers match these filters.">
+        <PanelTable
+          rows={rows}
+          rowKey={rowId}
+          columns={[
+            { key: "name", label: "Retailer", render: (row) => <span className="font-semibold">{row.name}</span> },
+            { key: "email", label: "Email", render: (row) => row.email || "—" },
+            { key: "city", label: "City", render: (row) => row.city || "—" },
+            { key: "orders", label: "Orders" },
+            { key: "spend", label: "Lifetime spend", render: (row) => inr(row.spend) },
+            { key: "status", label: "Status", render: (row) => <StatusBadge value={row.status} /> },
+            { key: "lastOrderAt", label: "Last order", render: (row) => formatDate(row.lastOrderAt) },
+          ]}
+        />
+      </PanelState>
+      <PanelPager meta={metaOf(data)} page={page} onPage={setPage} />
     </div>
   );
 }

@@ -1,7 +1,7 @@
 import { Home, LayoutGrid, ShoppingCart, UserRound } from "lucide-react";
 import { NavLink } from "react-router-dom";
-import { useCart } from "../../shared/context/CartContext.jsx";
-import { useAccountDrawer } from "../../shared/context/AccountDrawerContext.jsx";
+import { useCart } from "../context/CartContext.jsx";
+import { useAccountDrawer } from "../context/AccountDrawerContext.jsx";
 
 const items = [
   { to: "/", icon: Home, label: "Home" },

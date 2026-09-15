@@ -1,7 +1,7 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useState } from "react";
 import { getProduct } from "../data/catalog.js";
-import { api } from "../api.js";
-import { useAuth } from "./AuthContext.jsx";
+import { api } from "../../shared/api.js";
+import { useAuth } from "../../shared/context/AuthContext.jsx";
 
 const KEY = "msr-cart";
 const WISH_KEY = "msr-wish";

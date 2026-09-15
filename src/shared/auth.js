@@ -25,9 +25,7 @@ export function homeFor(role) {
   return "/";
 }
 
-export function loginFor(role) {
-  if (role === ROLES.SUPER_ADMIN) return "/super-admin/login";
-  if (role === ROLES.TENANT) return "/tenant/login";
+export function loginFor() {
   return "/login";
 }
 
@@ -42,4 +40,16 @@ export function isPortalPath(pathname, role) {
   if (role === ROLES.SUPER_ADMIN) return pathname.startsWith("/super-admin");
   if (role === ROLES.TENANT) return pathname.startsWith("/tenant");
   return !pathname.startsWith("/tenant") && !pathname.startsWith("/super-admin");
+}
+
+export function prettyStatus(value) {
+  return String(value || "")
+    .replaceAll("_", " ")
+    .replace(/\b\w/g, (c) => c.toUpperCase());
+}
+
+export function rowsOf(res) {
+  if (Array.isArray(res)) return res;
+  if (Array.isArray(res?.data)) return res.data;
+  return [];
 }

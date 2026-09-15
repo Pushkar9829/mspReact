@@ -1,3 +1,5 @@
+import { BRAND_LOGO } from "../lib/brandLogo.js";
+
 export const categories = [
   { slug: "staples", name: "Staples", emoji: "🌾", color: "bg-amber-50" },
   { slug: "beverages", name: "Beverages", emoji: "🍵", color: "bg-orange-50" },
@@ -10,25 +12,73 @@ export const categories = [
 ];
 
 export const needs = [
-  { slug: "cooking", name: "Cooking Essentials", to: "/category/staples" },
-  { slug: "masala", name: "Masala & Spices", to: "/category/staples?q=Masala" },
-  { slug: "pulses", name: "Pulses & Grains", to: "/category/staples" },
-  { slug: "sauces", name: "Sauces & Ketchup", to: "/category/snacks?q=Maggi" },
-  { slug: "biscuits", name: "Biscuits & Cookies", to: "/category/snacks?q=Parle" },
-  { slug: "chocolates", name: "Chocolates &\nConfectionery", to: "/category/snacks" },
-  { slug: "cleaning", name: "Cleaning Essentials", to: "/category/home-care" },
-  { slug: "tissues", name: "Tissues & Papers", to: "/category/home-care" },
+  {
+    slug: "cooking",
+    name: "Cooking Essentials",
+    to: "/category/staples?q=Oil",
+    image: "https://images.unsplash.com/photo-1474979266404-7ea967d81275?auto=format&fit=crop&w=240&h=240&q=80",
+    fallback: "/categories/staples.png",
+  },
+  {
+    slug: "masala",
+    name: "Masala & Spices",
+    to: "/category/staples?q=Masala",
+    image: "https://images.unsplash.com/photo-1596040033229-a9821ebd058d?auto=format&fit=crop&w=240&h=240&q=80",
+    fallback: "/categories/staples.png",
+  },
+  {
+    slug: "pulses",
+    name: "Pulses & Grains",
+    to: "/category/staples?q=Atta",
+    image: "https://images.unsplash.com/photo-1586201375761-83865001e31c?auto=format&fit=crop&w=240&h=240&q=80",
+    fallback: "/categories/staples.png",
+  },
+  {
+    slug: "sauces",
+    name: "Sauces & Ketchup",
+    to: "/category/snacks?q=Maggi",
+    image: "https://images.unsplash.com/photo-1472476443507-c7a9bab65f43?auto=format&fit=crop&w=240&h=240&q=80",
+    fallback: "/categories/snacks.png",
+  },
+  {
+    slug: "biscuits",
+    name: "Biscuits & Cookies",
+    to: "/category/snacks?q=Parle",
+    image: "https://images.unsplash.com/photo-1558961363-fa8fdf82db35?auto=format&fit=crop&w=240&h=240&q=80",
+    fallback: "/categories/snacks.png",
+  },
+  {
+    slug: "chocolates",
+    name: "Chocolates & Confectionery",
+    to: "/category/snacks",
+    image: "https://images.unsplash.com/photo-1511381939415-e44015466831?auto=format&fit=crop&w=240&h=240&q=80",
+    fallback: "/categories/snacks.png",
+  },
+  {
+    slug: "cleaning",
+    name: "Cleaning Essentials",
+    to: "/category/home-care?q=Surf",
+    image: "https://images.unsplash.com/photo-1563453392212-326f5e854473?auto=format&fit=crop&w=240&h=240&q=80",
+    fallback: "/categories/home-care.png",
+  },
+  {
+    slug: "tissues",
+    name: "Tissues & Papers",
+    to: "/category/home-care",
+    image: "https://images.unsplash.com/photo-1584553421349-35a42e1e63d6?auto=format&fit=crop&w=240&h=240&q=80",
+    fallback: "/categories/home-care.png",
+  },
 ];
 
 export const brands = [
-  { slug: "tata", name: "Tata", letter: "T" },
-  { slug: "fortune", name: "Fortune", letter: "F" },
-  { slug: "maggi", name: "Maggi", letter: "M" },
-  { slug: "surf-excel", name: "Surf Excel", letter: "S" },
-  { slug: "aashirvaad", name: "Aashirvaad", letter: "A" },
-  { slug: "parle", name: "Parle", letter: "P" },
-  { slug: "amul", name: "Amul", letter: "A" },
-  { slug: "dove", name: "Dove", letter: "D" },
+  { slug: "tata", name: "Tata", letter: "T", logo: BRAND_LOGO },
+  { slug: "fortune", name: "Fortune", letter: "F", logo: BRAND_LOGO },
+  { slug: "maggi", name: "Maggi", letter: "M", logo: BRAND_LOGO },
+  { slug: "surf-excel", name: "Surf Excel", letter: "S", logo: BRAND_LOGO },
+  { slug: "aashirvaad", name: "Aashirvaad", letter: "A", logo: BRAND_LOGO },
+  { slug: "parle", name: "Parle", letter: "P", logo: BRAND_LOGO },
+  { slug: "amul", name: "Amul", letter: "A", logo: BRAND_LOGO },
+  { slug: "dove", name: "Dove", letter: "D", logo: BRAND_LOGO },
 ];
 
 export const locations = [
@@ -363,7 +413,7 @@ export const products = [
     manufacturer: "Mahashian Di Hatti Pvt. Ltd.",
     newLaunch: true,
   },
-];
+].map((p) => ({ ...p, image: "/products/product.png", gallery: ["/products/product.png"] }));
 
 export function discount(product) {
   if (!product?.mrp || product.mrp <= product.price) return 0;
@@ -384,80 +434,6 @@ export function getProduct(id) {
 export function getCatalogProducts() {
   return liveProducts || products;
 }
-
-export const heroSlides = [
-  {
-    id: "everyday",
-    kicker: "Wholesale FMCG",
-    title: "Everything you need,\neveryday.",
-    sub: "Your trusted marketplace for quality products at the best prices — for homes, kiranas and businesses.",
-    cta: "Shop now",
-    to: "/category/all",
-    image: "/hero-crate.png",
-    imageAlt: "MS₹ crate of everyday FMCG brands",
-  },
-  {
-    id: "bulk",
-    kicker: "For retailers",
-    title: "Bulk prices.\nEvery order.",
-    sub: "Special wholesale rates, GST invoices and pan-India delivery for kiranas, offices and businesses.",
-    cta: "Shop bulk",
-    to: "/bulk",
-    image: "/promos/bulk.png",
-    imageAlt: "Bulk MS₹ shipping boxes",
-  },
-  {
-    id: "deal",
-    kicker: "Deal of the day",
-    title: "Daily deals.\nLimited time.",
-    sub: "Save on fast-moving FMCG staples. Fresh offers, genuine brands, ready to stock.",
-    cta: "View deals",
-    to: "/deals",
-    image: "/promos/deal.png",
-    imageAlt: "Deal of the day product",
-  },
-  {
-    id: "new",
-    kicker: "Just in",
-    title: "New launches.\nEvery week.",
-    sub: "Discover the latest arrivals from India’s most trusted FMCG brands.",
-    cta: "Explore new",
-    to: "/new",
-    image: "/promos/new.png",
-    imageAlt: "New personal care launches",
-  },
-].map((slide) => {
-  if (slide.id === "deal") {
-    const p = getProduct("tata-tea-premium") || products.find((x) => x.deal);
-    if (p) {
-      return {
-        ...slide,
-        sub: `${p.name} · ${p.weight}. ${p.description}`,
-        image: p.image,
-        imageAlt: p.name,
-        price: p.price,
-        weight: p.weight,
-        to: `/product/${p.id}`,
-        cta: "Shop this deal",
-      };
-    }
-  }
-  if (slide.id === "new") {
-    const p = getProduct("dove-body-wash") || products.find((x) => x.newLaunch);
-    if (p) {
-      return {
-        ...slide,
-        sub: `${p.name} · ${p.weight}. ${p.description}`,
-        image: p.image,
-        imageAlt: p.name,
-        price: p.price,
-        weight: p.weight,
-        to: `/product/${p.id}`,
-      };
-    }
-  }
-  return slide;
-});
 
 export function filterProducts({ category, brand, q, deal, newLaunch, bestseller, maxPrice } = {}) {
   return products.filter((p) => {

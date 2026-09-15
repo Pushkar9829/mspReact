@@ -1,17 +1,60 @@
-import { useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Link } from "react-router-dom";
-import { needs } from "../../shared/data/catalog.js";
-import { useShopCatalog } from "../../shared/context/ShopCatalogContext.jsx";
+import { discount, needs } from "../data/catalog.js";
+import { useShopCatalog } from "../context/ShopCatalogContext.jsx";
+import { useDeliveryLocation } from "../context/LocationContext.jsx";
 import ProductCard from "../components/ProductCard.jsx";
 import Hero from "../components/Hero.jsx";
-import { SectionTitle } from "../../shared/components/ui.jsx";
-import { ArrowRight, Award, ChevronRight, ShieldCheck, Truck } from "lucide-react";
+import BrandLogo from "../components/BrandLogo.jsx";
+import { SectionTitle } from "../components/shopUi.jsx";
+import { Award, Check, ChevronLeft, ChevronRight, Home as HomeIcon, ShieldCheck, Store, Truck } from "lucide-react";
+
+const IMG = {
+  pantry: "https://images.unsplash.com/photo-1556910103-1c02745aae4d?auto=format&fit=crop&w=1400&q=80",
+  spices: "https://images.unsplash.com/photo-1596040033229-a9821ebd058d?auto=format&fit=crop&w=1400&q=80",
+  aisle: "https://images.unsplash.com/photo-1542838132-92c53300491e?auto=format&fit=crop&w=1400&q=80",
+  dispatch: "https://images.unsplash.com/photo-1586528116311-ad8dd3c8310d?auto=format&fit=crop&w=1400&q=80",
+  checkout: "https://images.unsplash.com/photo-1556742049-0cfed4f6a45d?auto=format&fit=crop&w=1400&q=80",
+  kirana: "https://images.unsplash.com/photo-1604719312566-8912e9227c6a?auto=format&fit=crop&w=1400&q=80",
+};
 
 const TRUST_STRIP = [
-  { icon: Award, title: "Trusted by Thousands", text: "of Retailers", to: "/bulk" },
-  { icon: ShieldCheck, title: "Genuine Products", text: "100% Original", to: "/help" },
-  { icon: Truck, title: "On-Time Delivery", text: "Across India", to: "/help#shipping" },
-  { icon: ShieldLockIcon, title: "Secure Payments", text: "Multiple Options", to: "/help" },
+  {
+    icon: Award,
+    title: "Retail and household",
+    text: "One floor for kiranas and home pantries",
+    to: "/bulk",
+    image: IMG.pantry,
+    fallback: "/categories/staples.png",
+    alt: "A well-stocked home kitchen",
+  },
+  {
+    icon: ShieldCheck,
+    title: "Sealed branded packs",
+    text: "Listed FMCG from known manufacturers",
+    to: "/help#genuine",
+    image: IMG.spices,
+    fallback: "/promos/deal.png",
+    alt: "Sealed spices and grocery packs",
+  },
+  {
+    icon: Truck,
+    title: "Metro dispatch 1–3 days",
+    text: "Bulk may ship from the nearest warehouse",
+    to: "/help#shipping",
+    image: IMG.dispatch,
+    fallback: "/promos/bulk.png",
+    alt: "Warehouse ready for dispatch",
+  },
+  {
+    icon: ShieldLockIcon,
+    title: "UPI, cards, net banking",
+    text: "Pay securely at checkout",
+    to: "/help#payments",
+    image: IMG.checkout,
+    fallback: "/promos/new.png",
+    alt: "Secure card payment at checkout",
+  },
 ];
 
 const BESTSELLER_IDS = [
@@ -24,181 +67,422 @@ const BESTSELLER_IDS = [
 ];
 
 const CATEGORY_STRIP = [
-  { slug: "staples", name: "Staples", image: "/categories/staples.png" },
-  { slug: "beverages", name: "Beverages", image: "/categories/beverages.png" },
-  { slug: "snacks", name: "Snacks &\nBranded Foods", image: "/categories/snacks.png" },
-  { slug: "personal-care", name: "Personal Care", image: "/categories/personal-care.png" },
-  { slug: "home-care", name: "Home Care", image: "/categories/home-care.png" },
-  { slug: "baby-care", name: "Baby Care", image: "/categories/baby-care.png" },
-  { slug: "health", name: "Health &\nWellness", image: "/categories/health.png" },
-  { slug: "dairy", name: "Dairy &\nBakery", image: "/categories/dairy.png" },
+  { slug: "staples", name: "Staples", image: "/categories/staples.png", tint: "bg-amber-50" },
+  { slug: "beverages", name: "Beverages", image: "/categories/beverages.png", tint: "bg-orange-50" },
+  { slug: "snacks", name: "Snacks", image: "/categories/snacks.png", tint: "bg-yellow-50" },
+  { slug: "personal-care", name: "Personal Care", image: "/categories/personal-care.png", tint: "bg-sky-50" },
+  { slug: "home-care", name: "Home Care", image: "/categories/home-care.png", tint: "bg-indigo-50" },
+  { slug: "baby-care", name: "Baby Care", image: "/categories/baby-care.png", tint: "bg-pink-50" },
+  { slug: "health", name: "Health & Wellness", image: "/categories/health.png", tint: "bg-emerald-50" },
+  { slug: "dairy", name: "Dairy & Bakery", image: "/categories/dairy.png", tint: "bg-lime-50" },
 ];
+
+const TILE =
+  "group flex flex-col items-center rounded-2xl bg-white p-3 text-center shadow-[0_4px_18px_rgba(8,10,61,0.05)] ring-1 ring-[#ece6d4] transition duration-200 hover:-translate-y-1 hover:shadow-[0_12px_28px_rgba(39,34,184,0.1)] hover:ring-[#ead9a0]";
 
 export default function Home() {
   const rowRef = useRef(null);
-  const { products, filterProducts } = useShopCatalog();
+  const { products, filterProducts, brands, ready } = useShopCatalog();
+  const { location, setLocation, locations } = useDeliveryLocation();
+  const [canLeft, setCanLeft] = useState(false);
+  const [canRight, setCanRight] = useState(false);
+  const [marqueePaused, setMarqueePaused] = useState(false);
+
   const featured = BESTSELLER_IDS.map((id) => products.find((p) => p.id === id)).filter(Boolean);
   const tagged = filterProducts({ bestseller: true });
-  const bestsellers = [
-    ...featured,
-    ...tagged.filter((p) => !BESTSELLER_IDS.includes(p.id)),
-    ...products.filter((p) => !BESTSELLER_IDS.includes(p.id) && !tagged.some((t) => t.id === p.id)),
-  ];
+  const bestsellers = [...featured, ...tagged.filter((p) => !BESTSELLER_IDS.includes(p.id))].slice(0, 12);
+  const maxOff = products.reduce((n, p) => Math.max(n, discount(p)), 0);
 
-  function scrollBestsellers() {
+  function updateScroll() {
+    const el = rowRef.current;
+    if (!el) return;
+    setCanLeft(el.scrollLeft > 8);
+    setCanRight(el.scrollLeft + el.clientWidth < el.scrollWidth - 8);
+  }
+
+  useEffect(() => {
+    const el = rowRef.current;
+    if (!el) return undefined;
+    updateScroll();
+    el.addEventListener("scroll", updateScroll, { passive: true });
+    window.addEventListener("resize", updateScroll);
+    return () => {
+      el.removeEventListener("scroll", updateScroll);
+      window.removeEventListener("resize", updateScroll);
+    };
+  }, [bestsellers.length]);
+
+  function scrollBestsellers(dir) {
     const el = rowRef.current;
     if (!el) return;
     const card = el.querySelector("[data-product-card]");
     const step = card ? card.getBoundingClientRect().width + 16 : 192;
-    el.scrollBy({ left: step * 2, behavior: "smooth" });
+    el.scrollBy({ left: dir * step * 2, behavior: "smooth" });
   }
 
   return (
     <div>
       <Hero />
 
-      <section className="relative z-10 bg-[#070b2e] pb-10">
-        <div className="msr-gutter">
-          <div className="flex items-stretch overflow-x-auto rounded-2xl bg-white px-2 py-5 shadow-[0_12px_40px_rgba(8,10,61,0.14)] no-scrollbar sm:px-3">
-            {CATEGORY_STRIP.map((c, i) => (
-              <Link
-                key={c.slug}
-                to={`/category/${c.slug}`}
-                className="relative flex w-[5.75rem] shrink-0 flex-col items-center px-2 text-center sm:w-auto sm:min-w-0 sm:flex-1"
-              >
-                {i > 0 ? <span className="absolute left-0 top-[18%] h-[46%] w-px bg-[#e8eaf2]" /> : null}
-                <img src={c.image} alt={c.name.replaceAll("\n", " ")} className="h-[72px] w-full object-contain md:h-[84px]" />
-                <span className="mt-2.5 whitespace-pre-line text-[12px] font-semibold leading-tight text-[#0b1460]">
+      <section className="bg-msr-bg">
+        <div className="msr-gutter py-8 md:py-10">
+          <SectionTitle title="Shop by Category" to="/category/all" />
+          <div className="grid grid-cols-2 gap-3 sm:grid-cols-4 lg:grid-cols-8 lg:gap-4">
+            {CATEGORY_STRIP.map((c) => (
+              <Link key={c.slug} to={`/category/${c.slug}`} className={`${TILE} px-3`}>
+                <span className={`grid aspect-square w-full place-items-center overflow-hidden rounded-2xl ${c.tint}`}>
+                  <img
+                    src={c.image}
+                    alt={c.name}
+                    className="h-[76%] w-[76%] object-contain transition duration-300 group-hover:scale-105"
+                  />
+                </span>
+                <span className="mt-2.5 min-h-[2.5em] text-[13px] font-semibold leading-snug text-msr-navy">
                   {c.name}
                 </span>
               </Link>
             ))}
-            <Link to="/category/all" className="flex w-[5.75rem] shrink-0 flex-col items-center justify-center text-center sm:flex-1 sm:max-w-[5.75rem]">
-              <span className="grid h-12 w-12 place-items-center rounded-full border border-[#7b6cff] text-[#4b46ff]">
-                <ArrowRight className="h-5 w-5" />
-              </span>
-              <span className="mt-2.5 text-[12px] font-semibold text-[#0b1460]">View all</span>
-            </Link>
           </div>
         </div>
       </section>
 
-      <section className="msr-gutter msr-section">
-        <div className="grid items-stretch gap-4 md:grid-cols-3">
-          <Promo
-            to="/bulk"
-            title="Big savings on bulk orders"
-            text="Special prices for retailers & businesses"
-            cta="Shop Bulk"
-            image="/promos/bulk.png"
-            imageAlt="Bulk MS₹ shipping boxes"
-          />
-          <Promo
-            to="/deals"
-            title="Deal of the day"
-            text="Daily deals. Limited time offers."
-            offer="50% OFF"
-            cta="Shop Now"
-            outlined
-            image="/promos/deal.png"
-            imageAlt="Deal of the day salt pack"
-          />
-          <Promo
-            to="/new"
-            title="New launches"
-            text="Discover the latest products"
-            cta="Explore Now"
-            arrow
-            image="/promos/new.png"
-            imageAlt="New personal care launches"
-          />
+      <section className="bg-msr-bg">
+        <div className="msr-gutter py-8 md:py-10">
+          <SectionTitle title="Today's Highlights" />
+          <div className="grid items-stretch gap-4 md:grid-cols-3">
+            <Promo
+              to="/bulk"
+              kicker="Wholesale"
+              title="Big savings on bulk orders"
+              text="Special prices for retailers and businesses, with GST invoices."
+              cta="Shop Bulk"
+              image="/promos/bulk.png"
+              imageAlt="Bulk MS₹ shipping boxes"
+              variant="featured"
+            />
+            <Promo
+              to="/deals"
+              kicker="Limited time"
+              title="Deal of the day"
+              text="Fresh daily deals on fast-moving FMCG brands."
+              offer={maxOff ? `${maxOff}% OFF` : null}
+              cta="Shop Now"
+              image="/promos/deal.png"
+              imageAlt="Deal of the day salt pack"
+              variant="deal"
+            />
+            <Promo
+              to="/new"
+              kicker="Just in"
+              title="New launches"
+              text="Discover the latest products from trusted brands."
+              cta="Explore Now"
+              image="/promos/new.png"
+              imageAlt="New personal care launches"
+              variant="new"
+            />
+          </div>
         </div>
       </section>
 
-      <section className="msr-gutter msr-section">
-        <SectionTitle title="Best Selling Products" to="/category/all" action="View All →" />
-        <div className="relative">
-          <div ref={rowRef} className="flex gap-4 overflow-x-auto scroll-smooth no-scrollbar">
-            {bestsellers.map((p) => (
-              <div key={p.id} data-product-card className="w-[170px] shrink-0 sm:w-[190px] lg:w-[calc((100%-3rem)/4)]">
-                <ProductCard product={p} />
-              </div>
+      {brands.length ? (
+        <section className="bg-msr-bg py-8 md:py-10">
+          <div className="msr-gutter mb-5 flex items-center justify-between gap-4">
+            <Link to="/brands" className="min-w-0">
+              <h2 className="text-[1.375rem] font-bold tracking-tight text-[#1a1c3d] hover:text-[#4b46ff] md:text-[1.5rem]">
+                Brands on the Floor
+              </h2>
+            </Link>
+            <div className="flex shrink-0 items-center gap-2">
+              <button
+                type="button"
+                className="rounded-lg px-2 py-1 text-[13px] font-semibold text-msr-navy hover:bg-[#fffaf0]"
+                onClick={() => setMarqueePaused((v) => !v)}
+                aria-pressed={marqueePaused}
+              >
+                {marqueePaused ? "Play" : "Pause"}
+              </button>
+              <Link
+                to="/brands"
+                className="inline-flex items-center rounded-lg px-2 py-1 text-[13px] font-semibold text-[#4b46ff] hover:bg-[#eef0ff] hover:text-[#2722b8]"
+              >
+                View all →
+              </Link>
+            </div>
+          </div>
+          <div className="brand-marquee relative overflow-hidden border-y border-[#ece6d4] bg-white py-5">
+            <div className={`brand-marquee-track ${marqueePaused ? "is-paused" : ""}`}>
+              {[...brands, ...brands].map((b, i) => (
+                <Link
+                  key={`${b.slug}-${i}`}
+                  to={`/category/all?q=${encodeURIComponent(b.name)}`}
+                  className="mx-3 inline-flex shrink-0 items-center gap-3 whitespace-nowrap rounded-full border border-[#ead9a0] bg-[#fffaf0] px-4 py-2.5 text-msr-navy transition hover:border-msr-gold hover:bg-msr-navy hover:text-msr-gold"
+                >
+                  <BrandLogo className="h-9 w-9" alt="" />
+                  <span className="text-sm font-semibold">{b.name}</span>
+                </Link>
+              ))}
+            </div>
+          </div>
+        </section>
+      ) : null}
+
+      <section className="bg-msr-bg">
+        <div className="msr-gutter py-8 md:py-10">
+          <SectionTitle title="Best Selling Products" to="/category/all" />
+          <div className="relative">
+            <div
+              ref={rowRef}
+              className="flex gap-4 overflow-x-auto overflow-y-hidden scroll-smooth no-scrollbar px-1 py-3"
+            >
+              {!ready && !bestsellers.length
+                ? Array.from({ length: 4 }, (_, i) => (
+                    <div
+                      key={i}
+                      className="h-[280px] w-[196px] shrink-0 animate-pulse rounded-2xl bg-[#ece6d4]/50 sm:w-[220px] lg:w-[calc((100%-3rem)/4)]"
+                    />
+                  ))
+                : null}
+              {bestsellers.map((p, i) => (
+                <div
+                  key={p.id}
+                  data-product-card
+                  className="product-card-in w-[196px] shrink-0 sm:w-[220px] lg:w-[calc((100%-3rem)/4)]"
+                  style={{ animationDelay: `${Math.min(i, 8) * 70}ms` }}
+                >
+                  <ProductCard product={p} />
+                </div>
+              ))}
+            </div>
+
+            {ready && !bestsellers.length ? (
+              <p className="py-10 text-center text-sm text-msr-muted">
+                No bestsellers yet.{" "}
+                <Link to="/category/all" className="font-semibold text-msr-navy underline">
+                  Browse the floor
+                </Link>
+              </p>
+            ) : null}
+
+            {canLeft ? (
+              <>
+                <div className="pointer-events-none absolute inset-y-0 left-0 z-10 w-12 bg-gradient-to-r from-msr-bg to-transparent" />
+                <button
+                  type="button"
+                  onClick={() => scrollBestsellers(-1)}
+                  className="product-arrow absolute left-2 top-1/2 z-20 grid h-11 w-11 -translate-y-1/2 place-items-center rounded-full border border-[#eceef4] bg-white text-msr-navy shadow-[0_10px_28px_rgba(16,24,40,0.16)] hover:bg-msr-navy hover:text-white"
+                  aria-label="Previous products"
+                >
+                  <ChevronLeft className="h-5 w-5" />
+                </button>
+              </>
+            ) : null}
+
+            {canRight ? (
+              <>
+                <div className="pointer-events-none absolute inset-y-0 right-0 z-10 w-12 bg-gradient-to-l from-msr-bg to-transparent" />
+                <button
+                  type="button"
+                  onClick={() => scrollBestsellers(1)}
+                  className="product-arrow absolute right-2 top-1/2 z-20 grid h-11 w-11 -translate-y-1/2 place-items-center rounded-full border border-[#eceef4] bg-white text-msr-navy shadow-[0_10px_28px_rgba(16,24,40,0.16)] hover:bg-msr-navy hover:text-white"
+                  aria-label="Next products"
+                >
+                  <ChevronRight className="h-5 w-5" />
+                </button>
+              </>
+            ) : null}
+          </div>
+        </div>
+      </section>
+
+      <section className="bg-msr-bg">
+        <div className="msr-gutter py-8 md:py-10">
+          <SectionTitle title="The MS₹ Floor" />
+          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4 lg:gap-4">
+            {TRUST_STRIP.map(({ icon: Icon, title, text, to, image, fallback, alt }) => (
+              <Link
+                key={title}
+                to={to}
+                className="group relative isolate min-h-[260px] overflow-hidden rounded-2xl text-white shadow-[0_8px_28px_rgba(8,10,61,0.12)] sm:min-h-[280px] lg:min-h-[320px]"
+              >
+                <CoverPhoto
+                  src={image}
+                  fallback={fallback}
+                  alt={alt}
+                  className="absolute inset-0 h-full w-full object-cover transition duration-700 group-hover:scale-105"
+                />
+                <span className="absolute inset-0 bg-gradient-to-t from-[#080a3d] via-[#080a3d]/55 to-[#080a3d]/10" />
+                <span className="relative z-10 flex h-full flex-col justify-end p-6 md:p-7">
+                  <span className="grid h-10 w-10 place-items-center rounded-full border border-msr-gold/50 bg-white/10 text-msr-gold backdrop-blur-sm">
+                    <Icon className="h-5 w-5" strokeWidth={1.6} />
+                  </span>
+                  <span className="mt-4 block text-[17px] font-bold tracking-tight md:text-[18px]">{title}</span>
+                  <span className="mt-1 block max-w-sm text-[13px] leading-relaxed text-white/75">{text}</span>
+                </span>
+              </Link>
             ))}
           </div>
-          <button
-            type="button"
-            onClick={scrollBestsellers}
-            className="absolute right-0 top-[46%] z-10 grid h-11 w-11 -translate-y-1/2 place-items-center rounded-full border border-[#eceef4] bg-white text-[#1a1c3d] shadow-[0_8px_24px_rgba(16,24,40,0.12)] hover:bg-[#f7f8fc]"
-            aria-label="See more bestselling products"
-          >
-            <ChevronRight className="h-5 w-5" />
-          </button>
         </div>
       </section>
 
-      <section className="msr-gutter msr-section">
-        <div className="grid grid-cols-1 overflow-hidden rounded-2xl bg-[#0b1460] sm:grid-cols-2 lg:grid-cols-4">
-          {TRUST_STRIP.map(({ icon: Icon, title, text, to }) => (
-            <Link
-              key={title}
-              to={to}
-              className="flex items-center gap-3.5 px-6 py-6 text-white transition hover:bg-white/10 lg:justify-center lg:border-l lg:border-white/15 lg:px-5 lg:first:border-l-0"
-            >
-              <Icon className="h-6 w-6 shrink-0 stroke-[1.6] text-white/95" />
-              <p className="text-[14px] font-semibold leading-snug md:text-[15px]">
-                {title}
-                <span className="block text-[13px] font-medium text-white/80">{text}</span>
-              </p>
-            </Link>
-          ))}
-        </div>
-      </section>
-
-      <section className="msr-gutter msr-section">
-        <SectionTitle title="Shop by Need" to="/category/all" action="View All Categories →" />
-        <div className="grid grid-cols-3 gap-3 sm:grid-cols-5 lg:grid-cols-9 lg:gap-4">
-          {needs.map((n) => (
-            <Link
-              key={n.slug}
-              to={n.to}
-              className="group flex flex-col items-center text-center"
-            >
-              <span className="grid aspect-square w-full place-items-center rounded-2xl bg-[#eef0ff] text-[#0b1460] transition group-hover:bg-[#e4e6ff]">
-                <NeedIcon slug={n.slug} />
-              </span>
-              <span className="mt-2.5 whitespace-pre-line text-[13px] font-semibold leading-snug text-[#1a1c3d]">
-                {n.name}
-              </span>
-            </Link>
-          ))}
-          <Link to="/category/all" className="group flex flex-col items-center text-center">
-            <span className="grid aspect-square w-full place-items-center rounded-2xl bg-[#eef0ff] text-[#0b1460] transition group-hover:bg-[#e4e6ff]">
-              <NeedIcon slug="more" />
-            </span>
-            <span className="mt-2.5 text-[13px] font-semibold text-[#1a1c3d]">More</span>
-          </Link>
-        </div>
-      </section>
-
-      <section className="msr-gutter msr-section pb-4">
-        <div className="overflow-hidden rounded-2xl hero-gradient p-8 text-white md:flex md:items-center md:justify-between md:px-12 md:py-11">
-          <div>
-            <h2 className="text-[1.75rem] font-extrabold tracking-tight md:text-[2rem]">Buying for your business?</h2>
-            <p className="mt-2 max-w-lg text-[15px] leading-relaxed text-white/80">
-              Get special prices on bulk FMCG orders with GST invoices and pan-India delivery.
-            </p>
-            <ul className="mt-4 grid gap-1.5 text-sm text-white/90 sm:grid-cols-2">
-              {["Wholesale pricing", "Bulk discounts", "GST invoices", "Reliable supply"].map((t) => (
-                <li key={t}>✓ {t}</li>
-              ))}
-            </ul>
+      <section className="bg-msr-bg">
+        <div className="msr-gutter py-8 md:py-10">
+          <SectionTitle title="Shop by Need" to="/category/all" />
+          <div className="grid grid-cols-2 gap-3 sm:grid-cols-4 lg:gap-4">
+            {needs.map((n) => (
+              <Link key={n.slug} to={n.to} className={`${TILE} px-3 py-4`}>
+                <span className="relative h-[4.75rem] w-[4.75rem] overflow-hidden rounded-full border border-[#ead9a0] bg-[#fffaf0] sm:h-20 sm:w-20">
+                  <CoverPhoto
+                    src={n.image}
+                    fallback={n.fallback}
+                    alt={n.name}
+                    className="h-full w-full object-cover transition duration-300 group-hover:scale-110"
+                  />
+                </span>
+                <span className="mt-3 min-h-[2.5em] text-[13px] font-semibold leading-snug text-msr-navy">{n.name}</span>
+              </Link>
+            ))}
           </div>
-          <Link to="/bulk" className="mt-6 inline-flex shrink-0 rounded-full bg-msr-gold px-6 py-3 text-sm font-bold text-msr-navy hover:brightness-95 md:mt-0">
-            Start bulk buying →
-          </Link>
+        </div>
+      </section>
+
+      <section className="bg-msr-bg">
+        <div className="msr-gutter py-8 md:py-10">
+          <SectionTitle title="Shop Your Way" />
+          <div className="grid overflow-hidden rounded-2xl border border-[#ece6d4] md:grid-cols-2">
+            <Link
+              to="/category/staples"
+              className="group relative isolate min-h-[280px] overflow-hidden px-7 py-9 md:min-h-[320px] md:px-9"
+            >
+              <CoverPhoto
+                src={IMG.pantry}
+                fallback="/categories/staples.png"
+                alt="Household pantry"
+                className="absolute inset-0 h-full w-full object-cover transition duration-700 group-hover:scale-105"
+              />
+              <span className="absolute inset-0 bg-[#fffaf0]/82" />
+              <span className="relative z-10 flex h-full flex-col">
+                <span className="grid h-12 w-12 place-items-center rounded-full bg-white text-msr-navy shadow-sm">
+                  <HomeIcon className="h-5 w-5" strokeWidth={1.7} />
+                </span>
+                <p className="mt-5 text-[11px] font-bold uppercase tracking-[0.16em] text-[#8a6a12]">For home</p>
+                <h3 className="mt-1 text-[1.45rem] font-extrabold tracking-tight text-msr-navy">The household pantry</h3>
+                <p className="mt-2 max-w-sm text-[14px] leading-relaxed text-[#5c6070]">
+                  Everyday atta, oil, tea and personal care — priced for your kitchen, delivered to your door.
+                </p>
+                <span className="mt-auto inline-flex items-center pt-5 text-sm font-bold text-msr-navy">
+                  Shop for home <ChevronRight className="h-4 w-4" />
+                </span>
+              </span>
+            </Link>
+            <Link
+              to="/bulk"
+              className="group relative isolate min-h-[280px] overflow-hidden px-7 py-9 text-white md:min-h-[320px] md:px-9"
+            >
+              <CoverPhoto
+                src={IMG.kirana}
+                fallback="/promos/bulk.png"
+                alt="Kirana shop shelves"
+                className="absolute inset-0 h-full w-full object-cover transition duration-700 group-hover:scale-105"
+              />
+              <span className="absolute inset-0 bg-[#080a3d]/78" />
+              <span className="relative z-10 flex h-full flex-col">
+                <span className="grid h-12 w-12 place-items-center rounded-full bg-white/10 text-msr-gold">
+                  <Store className="h-5 w-5" strokeWidth={1.7} />
+                </span>
+                <p className="mt-5 text-[11px] font-bold uppercase tracking-[0.16em] text-msr-gold">For kirana</p>
+                <h3 className="mt-1 text-[1.45rem] font-extrabold tracking-tight">The shop counter</h3>
+                <p className="mt-2 max-w-sm text-[14px] leading-relaxed text-white/75">
+                  Case packs, landing rates and GST invoices — built for retailers who restock every week.
+                </p>
+                <span className="mt-auto inline-flex items-center pt-5 text-sm font-bold text-msr-gold">
+                  Stock your store <ChevronRight className="h-4 w-4" />
+                </span>
+              </span>
+            </Link>
+          </div>
+        </div>
+      </section>
+
+      <section className="bg-msr-bg">
+        <div className="msr-gutter py-8 md:pb-12 md:pt-10">
+          <div className="overflow-hidden rounded-2xl border border-[#ece6d4] bg-gradient-to-br from-[#fffaf0] via-[#fff8e8] to-[#eef0ff]">
+            <div className="h-[3px] bg-gradient-to-r from-msr-navy via-msr-gold to-msr-navy" />
+            <div className="grid md:grid-cols-[1.35fr_0.9fr]">
+              <div className="px-6 py-9 md:px-10 md:py-11">
+                <p className="text-[11px] font-bold uppercase tracking-[0.18em] text-msr-navy">Wholesale desk</p>
+                <h2 className="mt-2 text-[1.7rem] font-extrabold tracking-tight text-msr-navy md:text-[2rem]">
+                  Buying for your business?
+                </h2>
+                <p className="mt-2 max-w-xl text-[15px] leading-relaxed text-[#5c6070]">
+                  Landing rates, GST invoices, and dispatch from {locations.length} cities — {products.length} SKUs on
+                  the floor.
+                </p>
+                <ul className="mt-5 grid gap-2 sm:grid-cols-2">
+                  {["Wholesale pricing", "Bulk discounts", "GST invoices", "Reliable supply"].map((t) => (
+                    <li key={t} className="flex items-center gap-2 text-[13px] text-msr-navy">
+                      <span className="grid h-5 w-5 place-items-center rounded-full bg-msr-navy text-msr-gold">
+                        <Check className="h-3 w-3" strokeWidth={2.4} />
+                      </span>
+                      {t}
+                    </li>
+                  ))}
+                </ul>
+                <div className="mt-5 flex flex-wrap gap-2">
+                  {locations.map((loc) => (
+                    <button
+                      key={loc.city}
+                      type="button"
+                      onClick={() => setLocation(loc)}
+                      className={`rounded-full border px-3 py-1 text-[12px] font-semibold transition ${
+                        loc.postalCode === location.postalCode
+                          ? "border-msr-navy bg-msr-navy text-msr-gold"
+                          : "border-[#ead9a0] bg-white text-msr-navy hover:border-msr-gold"
+                      }`}
+                    >
+                      {loc.city}
+                    </button>
+                  ))}
+                </div>
+                <Link
+                  to="/bulk"
+                  className="mt-7 inline-flex h-12 items-center justify-center rounded-full bg-msr-navy px-7 text-sm font-bold text-white transition hover:bg-[#1a1878]"
+                >
+                  Start bulk buying
+                  <ChevronRight className="ml-1 h-4 w-4" />
+                </Link>
+              </div>
+              <div className="relative min-h-[200px] md:min-h-full">
+                <CoverPhoto
+                  src={IMG.aisle}
+                  fallback="/promos/bulk.png"
+                  alt="Packed grocery aisle"
+                  className="absolute inset-0 h-full w-full object-cover"
+                />
+                <span className="absolute inset-0 bg-gradient-to-l from-transparent via-transparent to-[#fffaf0] max-md:hidden" />
+              </div>
+            </div>
+          </div>
         </div>
       </section>
     </div>
+  );
+}
+
+function CoverPhoto({ src, fallback, alt, className }) {
+  return (
+    <img
+      src={src}
+      alt={alt}
+      className={className}
+      loading="lazy"
+      referrerPolicy="no-referrer"
+      onError={(e) => {
+        if (e.currentTarget.dataset.fallback === "1") return;
+        e.currentTarget.dataset.fallback = "1";
+        e.currentTarget.src = fallback;
+      }}
+    />
   );
 }
 
@@ -212,140 +496,54 @@ function ShieldLockIcon({ className }) {
   );
 }
 
-function Promo({ title, text, cta, to, image, imageAlt, offer, outlined, arrow }) {
+function Promo({ title, text, cta, to, image, imageAlt, offer, kicker, variant = "new" }) {
+  const featured = variant === "featured";
+  const deal = variant === "deal";
+
   return (
     <Link
       to={to}
-      className="flex h-full min-h-[176px] items-center overflow-hidden rounded-2xl bg-[#eef0ff] pl-5 pr-2 transition hover:bg-[#e7e9ff] sm:pl-6"
+      className={`group relative flex h-full min-h-[210px] items-stretch overflow-hidden rounded-2xl p-5 transition duration-200 hover:-translate-y-1 sm:p-6 ${
+        featured
+          ? "bg-gradient-to-br from-[#eef0ff] via-white to-[#fff6d6] text-msr-text shadow-[0_4px_18px_rgba(8,10,61,0.06)] ring-1 ring-[#ece6d4] hover:shadow-[0_14px_32px_rgba(39,34,184,0.12)] hover:ring-msr-gold/40"
+          : "bg-white text-msr-text shadow-[0_4px_18px_rgba(8,10,61,0.06)] ring-1 ring-[#ece6d4] hover:shadow-[0_14px_32px_rgba(39,34,184,0.12)] hover:ring-[#ead9a0]"
+      }`}
     >
-      <div className="min-w-0 flex-1 py-5">
-        <h3 className="text-[15px] font-bold leading-snug text-[#0b1460]">{title}</h3>
-        <p className="mt-1.5 text-[13px] leading-relaxed text-[#5b6280]">{text}</p>
+      <div className="relative z-10 flex min-w-0 flex-1 flex-col">
+        <span
+          className={`w-fit rounded-full px-2.5 py-0.5 text-[11px] font-bold uppercase tracking-[0.12em] ${
+            featured ? "bg-msr-navy text-msr-gold" : deal ? "bg-amber-100 text-amber-800" : "bg-[#fffaf0] text-[#8a6a12]"
+          }`}
+        >
+          {kicker}
+        </span>
+        <h3 className="mt-3 text-[1.05rem] font-bold leading-snug tracking-tight text-msr-navy md:text-lg">{title}</h3>
+        <p className="mt-1.5 text-[13px] leading-relaxed text-msr-muted">{text}</p>
         {offer ? (
-          <p className="mt-2 text-[13px] text-[#0b1460]">
-            Up to <span className="text-lg font-extrabold">{offer}</span>
+          <p className="mt-2 text-[13px] font-semibold text-msr-navy">
+            Up to <span className={`text-xl font-extrabold ${deal ? "text-msr-navy" : ""}`}>{offer}</span>
           </p>
         ) : null}
         <span
-          className={`mt-4 inline-flex items-center gap-1 rounded-md px-3.5 py-1.5 text-[13px] font-semibold ${
-            outlined ? "border border-[#0b1460] bg-white text-[#0b1460]" : "bg-[#0b1460] text-white"
+          className={`mt-auto inline-flex w-fit items-center gap-1 rounded-full px-4 py-2 text-[13px] font-semibold ${
+            featured ? "bg-msr-gold text-msr-navy" : "bg-msr-navy text-white"
           }`}
         >
           {cta}
-          {arrow ? <span aria-hidden>›</span> : null}
+          <ChevronRight className="h-4 w-4" />
         </span>
       </div>
-      <img src={image} alt={imageAlt} className="h-[132px] w-[42%] object-contain sm:h-[148px]" />
+      <div
+        className={`ml-3 grid h-[132px] w-[42%] shrink-0 place-items-center self-center overflow-hidden rounded-2xl sm:h-[148px] ${
+          featured ? "bg-white/80" : deal ? "bg-amber-50" : "bg-[#fffaf0]"
+        }`}
+      >
+        <img
+          src={image}
+          alt={imageAlt}
+          className="h-[82%] w-[82%] object-contain transition duration-300 group-hover:scale-105"
+        />
+      </div>
     </Link>
-  );
-}
-
-function NeedIcon({ slug }) {
-  const svg = {
-    viewBox: "0 0 48 48",
-    fill: "none",
-    className: "h-[3.75rem] w-[3.75rem] sm:h-16 sm:w-16 lg:h-[4.25rem] lg:w-[4.25rem]",
-    "aria-hidden": true,
-  };
-  const s = {
-    stroke: "#0B1464",
-    strokeWidth: "1.5",
-    strokeLinecap: "round",
-    strokeLinejoin: "round",
-  };
-
-  if (slug === "cooking") {
-    return (
-      <svg {...svg}>
-        <path d="M18 8c0 3 2.2 3.4 2.2 6M24 6.5c0 3.6 2.4 4 2.4 7M30 8c0 3 2.2 3.4 2.2 6" {...s} />
-        <path d="M15 18h18" {...s} />
-        <path d="M17 16h14v2H17z" {...s} />
-        <path d="M12 20h24v9c0 6.5-5.2 11-12 11s-12-4.5-12-11v-9z" {...s} />
-        <path d="M12 23H7M36 23h5" {...s} />
-      </svg>
-    );
-  }
-  if (slug === "masala") {
-    return (
-      <svg {...svg}>
-        <path d="M17 10h14l-1.4 6H18.4L17 10z" {...s} />
-        <path d="M18.2 16h11.6v20.5c0 2.6-2.3 4-5.8 4s-5.8-1.4-5.8-4V16z" {...s} />
-        <circle cx="21.5" cy="13" r="0.9" fill="#0B1464" />
-        <circle cx="24" cy="13" r="0.9" fill="#0B1464" />
-        <circle cx="26.5" cy="13" r="0.9" fill="#0B1464" />
-        <path d="M21 23h6M21 28.5h6M21 34h6" {...s} />
-      </svg>
-    );
-  }
-  if (slug === "pulses") {
-    return (
-      <svg {...svg}>
-        <path d="M16 16c0-5.5 16-5.5 16 0" {...s} />
-        <path d="M16 16c1.8 3.2 13.2 3.2 16 0" {...s} />
-        <path d="M16 16v16.5c0 5.2 3.6 8 8 8s8-2.8 8-8V16" {...s} />
-        <path d="M22 12.5c.4-2 1.6-3.5 4-3.5" {...s} />
-        <circle cx="21" cy="27" r="1.15" fill="#0B1464" />
-        <circle cx="25.5" cy="29.5" r="1.15" fill="#0B1464" />
-        <circle cx="27.5" cy="24.5" r="1.15" fill="#0B1464" />
-      </svg>
-    );
-  }
-  if (slug === "sauces") {
-    return (
-      <svg {...svg}>
-        <path d="M20.5 8h7v5.5" {...s} />
-        <path d="M20.5 13.5h7l3 5.5v17c0 2.6-2.4 4-7 4s-7-1.4-7-4v-17l3-5.5z" {...s} />
-        <path d="M20.5 13.5h7" {...s} />
-        <path d="M19.5 26h9" {...s} />
-        <path d="M21.5 29.5h5" {...s} />
-      </svg>
-    );
-  }
-  if (slug === "biscuits") {
-    return (
-      <svg {...svg}>
-        <rect x="13" y="8.5" width="22" height="31" rx="3" {...s} />
-        <path d="M18 15h12M18 21h12M18 27h12M18 33h8" {...s} />
-        <circle cx="32.5" cy="12" r="1.1" fill="#0B1464" />
-      </svg>
-    );
-  }
-  if (slug === "chocolates") {
-    return (
-      <svg {...svg}>
-        <rect x="10" y="16" width="28" height="22" rx="3" {...s} />
-        <path d="M10 27h28M19.5 16v22M28.5 16v22" {...s} />
-        <path d="M15 11h5M29 11h5" {...s} />
-        <path d="M17.5 11c0-2.4 2.5-3.5 4.5-2.2M30.5 11c0-2.4 2.5-3.5 4.5-2.2" {...s} />
-      </svg>
-    );
-  }
-  if (slug === "cleaning") {
-    return (
-      <svg {...svg}>
-        <path d="M19 14h10l2.5 6v17c0 2.6-2.4 4.2-7.5 4.2s-7.5-1.6-7.5-4.2v-17L19 14z" {...s} />
-        <path d="M21 8.5h8v5.5h-10V10c0-.8.7-1.5 2-1.5z" {...s} />
-        <path d="M32.5 11c3.2 1.4 5.2 4.6 5.2 8" {...s} />
-        <path d="M18.5 24h11" {...s} />
-      </svg>
-    );
-  }
-  if (slug === "tissues") {
-    return (
-      <svg {...svg}>
-        <rect x="10.5" y="16" width="27" height="23" rx="3" {...s} />
-        <path d="M18 16V11c0-2.2 12-2.2 12 0v5" {...s} />
-        <path d="M21 11c1-3.2 6-4 8-1.2" {...s} />
-        <path d="M16 23.5h16M16 29h16M16 34.5h10" {...s} />
-      </svg>
-    );
-  }
-  return (
-    <svg {...svg}>
-      <circle cx="24" cy="24" r="14.5" {...s} />
-      <circle cx="16.5" cy="24" r="2.2" fill="#0B1464" />
-      <circle cx="24" cy="24" r="2.2" fill="#0B1464" />
-      <circle cx="31.5" cy="24" r="2.2" fill="#0B1464" />
-    </svg>
   );
 }

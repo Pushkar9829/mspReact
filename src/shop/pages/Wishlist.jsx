@@ -1,28 +1,37 @@
-import ProductCard, { PRODUCT_GRID } from "../components/ProductCard.jsx";
-import { useCart } from "../../shared/context/CartContext.jsx";
 import { Link } from "react-router-dom";
-import { SectionTitle } from "../../shared/components/ui.jsx";
+import { Heart } from "lucide-react";
+import ProductCard, { PRODUCT_GRID } from "../components/ProductCard.jsx";
+import { useCart } from "../context/CartContext.jsx";
+import { AccountEmpty, AccountHead } from "../components/accountUi.jsx";
 
 export default function Wishlist() {
   const { wishedProducts } = useCart();
-  if (!wishedProducts.length) {
-    return (
-      <div className="mx-auto max-w-lg px-4 py-16 text-center">
-        <h1 className="text-2xl font-extrabold">Wishlist is empty</h1>
-        <Link to="/category/all" className="mt-4 inline-block text-msr-purple">
-          Browse products
-        </Link>
-      </div>
-    );
-  }
+  const count = wishedProducts.length;
+
   return (
-    <div className="msr-gutter py-8">
-      <SectionTitle title="Saved items" to="/category/all" action="View All →" />
-      <div className={PRODUCT_GRID}>
-        {wishedProducts.map((p) => (
-          <ProductCard key={p.id} product={p} />
-        ))}
-      </div>
+    <div>
+      <AccountHead
+        title="Wishlist"
+        subtitle={
+          count
+            ? `${count} saved ${count === 1 ? "item" : "items"} on this device.`
+            : "Saved items on this device — tap the heart on a product to add it."
+        }
+      />
+
+      {!count ? (
+        <AccountEmpty icon={Heart} title="Wishlist is empty" text="Tap the heart on a product to save it here.">
+          <Link to="/category/all" className="inline-flex rounded-full bg-msr-navy px-5 py-2.5 text-sm font-bold text-white">
+            Browse products
+          </Link>
+        </AccountEmpty>
+      ) : (
+        <div className={`mt-6 ${PRODUCT_GRID}`}>
+          {wishedProducts.map((p) => (
+            <ProductCard key={p.id} product={p} />
+          ))}
+        </div>
+      )}
     </div>
   );
 }

@@ -66,15 +66,7 @@ export default function Register() {
         <p className="mt-4 text-sm text-msr-muted">
           Already have an account?{" "}
           <Link to="/login" className="font-semibold text-msr-purple">
-            Shopper sign in
-          </Link>
-          {" · "}
-          <Link to="/tenant/login" className="font-semibold text-msr-purple">
-            Tenant
-          </Link>
-          {" · "}
-          <Link to="/super-admin/login" className="font-semibold text-msr-purple">
-            Super admin
+            Sign in
           </Link>
         </p>
       </div>

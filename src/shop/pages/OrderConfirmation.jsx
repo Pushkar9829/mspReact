@@ -107,7 +107,7 @@ export default function OrderConfirmation() {
         ) : null}
 
         <div className="flex flex-wrap justify-center gap-3">
-          <Link to="/orders" className="rounded-xl bg-[#0b1460] px-5 py-3 text-sm font-semibold text-white">
+          <Link to="/account/orders" className="rounded-xl bg-[#0b1460] px-5 py-3 text-sm font-semibold text-white">
             View orders
           </Link>
           <Link to="/" className="rounded-xl border border-[#eceef4] px-5 py-3 text-sm font-semibold">

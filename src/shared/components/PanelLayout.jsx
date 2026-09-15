@@ -20,13 +20,13 @@ export default function PanelLayout({
   }
 
   return (
-    <div className="flex min-h-screen bg-msr-bg">
-      <aside className={`hidden w-64 flex-col text-white md:flex ${sidebarClass}`}>
-        <div className="px-5 py-5">
+    <div className="flex h-dvh overflow-hidden bg-msr-bg">
+      <aside className={`hidden h-full w-64 shrink-0 flex-col text-white md:flex ${sidebarClass}`}>
+        <div className="shrink-0 px-5 py-5">
           <Logo light compact />
           <p className="mt-1 text-[11px] uppercase tracking-widest text-white/50">{eyebrow}</p>
         </div>
-        <nav className="flex-1 px-3">
+        <nav className="msr-pane min-h-0 flex-1 overflow-y-auto px-3">
           {links.map((l) => (
             <NavLink
               key={l.to}
@@ -43,14 +43,14 @@ export default function PanelLayout({
             </NavLink>
           ))}
         </nav>
-        <div className="p-4">
+        <div className="shrink-0 p-4">
           <Link to={homeTo} className="block rounded-xl px-3 py-2 text-sm text-white/70 hover:bg-white/10">
             {homeLabel}
           </Link>
         </div>
       </aside>
-      <div className="flex min-w-0 flex-1 flex-col">
-        <header className="flex items-center justify-between gap-3 border-b border-msr-border bg-white px-4 py-3 md:px-6">
+      <div className="flex min-h-0 min-w-0 flex-1 flex-col">
+        <header className="flex shrink-0 items-center justify-between gap-3 border-b border-msr-border bg-white px-4 py-3 md:px-6">
           <div className="md:hidden">
             <Logo compact />
           </div>
@@ -58,7 +58,7 @@ export default function PanelLayout({
             {user?.name} · <span className="text-msr-text">{user?.email}</span>
           </p>
           <div className="flex max-w-[60vw] items-center gap-2 overflow-x-auto md:hidden">
-            {links.slice(0, 6).map((l) => (
+            {links.map((l) => (
               <NavLink key={l.to} to={l.to} className="whitespace-nowrap rounded-full bg-msr-bg px-3 py-1 text-xs font-semibold">
                 {l.label}
               </NavLink>
@@ -68,7 +68,7 @@ export default function PanelLayout({
             <LogOut className="h-4 w-4" /> Sign out
           </button>
         </header>
-        <div className="flex-1 p-4 md:p-6">
+        <div className="msr-pane min-h-0 flex-1 overflow-y-auto p-4 md:p-6">
           <Outlet />
         </div>
       </div>

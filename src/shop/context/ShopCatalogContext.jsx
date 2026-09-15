@@ -1,5 +1,5 @@
 import { createContext, useContext, useEffect, useMemo, useState } from "react";
-import { api } from "../api.js";
+import { api } from "../../shared/api.js";
 import {
   brands as staticBrands,
   categories as staticCategories,
@@ -7,6 +7,7 @@ import {
   setLiveCatalog,
 } from "../data/catalog.js";
 import { mapApiProduct, mapCategory } from "../lib/mapProduct.js";
+import { BRAND_LOGO } from "../lib/brandLogo.js";
 
 const ShopCatalogContext = createContext(null);
 
@@ -72,7 +73,7 @@ function uniqueBrands(rows, live) {
   for (const p of rows) {
     if (!p.brand) continue;
     const slug = p.brand.toLowerCase().replace(/\s+/g, "-");
-    if (!seen.has(slug)) seen.set(slug, { slug, name: p.brand, letter: p.brand[0] });
+    if (!seen.has(slug)) seen.set(slug, { slug, name: p.brand, letter: p.brand[0], logo: BRAND_LOGO });
   }
   return [...seen.values()];
 }

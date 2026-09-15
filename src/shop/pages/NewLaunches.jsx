@@ -1,6 +1,6 @@
-import { useShopCatalog } from "../../shared/context/ShopCatalogContext.jsx";
+import { useShopCatalog } from "../context/ShopCatalogContext.jsx";
 import ProductCard, { PRODUCT_GRID } from "../components/ProductCard.jsx";
-import { SectionTitle } from "../../shared/components/ui.jsx";
+import { SectionTitle } from "../components/shopUi.jsx";
 
 export default function NewLaunches() {
   const { filterProducts } = useShopCatalog();

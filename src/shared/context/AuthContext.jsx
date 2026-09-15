@@ -18,6 +18,7 @@ export function mapSession(data) {
     id: data.user?.id,
     name: data.user?.name || data.user?.email,
     email: data.user?.email,
+    phone: data.user?.phone || "",
     role: mapApiRole(roleSlug),
     roleSlug: typeof roleSlug === "string" ? roleSlug : "",
     tenant: data.user?.tenant?.name || "",
@@ -74,6 +75,11 @@ export function AuthProvider({ children }) {
         return login(email, password);
       },
       logout: () => setUser(null),
+      patchUser: (partial) =>
+        setUser((prev) => {
+          if (!prev) return prev;
+          return { ...prev, ...partial };
+        }),
     };
   }, [user]);
 

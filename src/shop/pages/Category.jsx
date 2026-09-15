@@ -2,8 +2,11 @@ import { useEffect, useMemo, useState } from "react";
 import { Link, useParams, useSearchParams } from "react-router-dom";
 import ProductCard, { PRODUCT_GRID } from "../components/ProductCard.jsx";
 import { useInfiniteFeed } from "../hooks/useInfiniteFeed.js";
-import { useShopCatalog } from "../../shared/context/ShopCatalogContext.jsx";
-import { SlidersHorizontal, X } from "lucide-react";
+import { useShopCatalog } from "../context/ShopCatalogContext.jsx";
+import BrandLogo from "../components/BrandLogo.jsx";
+import { SlidersHorizontal, TrendingUp, X } from "lucide-react";
+import { api } from "../../shared/api.js";
+import { pushRecentSearch } from "../lib/recentSearches.js";
 
 const PRICE_OPTIONS = [
   ["200", "Under ₹200"],
@@ -21,6 +24,7 @@ export default function Category() {
   const [price, setPrice] = useState("");
   const [sort, setSort] = useState("popular");
   const [filtersOpen, setFiltersOpen] = useState(false);
+  const [popular, setPopular] = useState([]);
   const { categories, brands, filterProducts } = useShopCatalog();
 
   const cat = categories.find((c) => c.slug === slug);
@@ -45,6 +49,26 @@ export default function Category() {
   useEffect(() => {
     setFiltersOpen(false);
   }, [slug, q]);
+
+  useEffect(() => {
+    const term = q.trim();
+    if (term.length < 2) return undefined;
+    pushRecentSearch(term);
+    api.recordSearch(term).catch(() => {});
+  }, [q]);
+
+  useEffect(() => {
+    let cancelled = false;
+    api
+      .searchSuggestions()
+      .then((res) => {
+        if (!cancelled && Array.isArray(res.popular)) setPopular(res.popular);
+      })
+      .catch(() => {});
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   useEffect(() => {
     document.body.style.overflow = filtersOpen ? "hidden" : "";
@@ -89,6 +113,7 @@ export default function Category() {
                   {on ? <span className="h-1.5 w-1.5 rounded-[1px] bg-white" /> : null}
                 </span>
                 <input type="checkbox" className="sr-only" checked={on} onChange={() => setBrand(on ? "" : b.name)} />
+                <BrandLogo className="h-6 w-6" alt="" />
                 {b.name}
               </label>
             );
@@ -184,8 +209,24 @@ export default function Category() {
 
       {visible.length === 0 ? (
         <div className="mt-2 rounded-2xl border border-dashed border-[#e6e8ef] bg-white px-6 py-16 text-center">
-          <p className="font-semibold text-[#1a1c3d]">No products match these filters</p>
-          <p className="mt-1 text-sm text-[#6b7280]">Try another category, brand, or price range.</p>
+          <p className="font-semibold text-[#1a1c3d]">
+            {q ? `No products for “${q}”` : "No products match these filters"}
+          </p>
+          <p className="mt-1 text-sm text-[#6b7280]">Try another category, brand, or a popular search.</p>
+          {popular.length ? (
+            <div className="mt-5 flex flex-wrap justify-center gap-2">
+              {popular.slice(0, 8).map((row) => (
+                <Link
+                  key={row.term}
+                  to={`/category/all?q=${encodeURIComponent(row.display)}`}
+                  className="inline-flex items-center gap-1.5 rounded-full border border-[#ece6d4] bg-[#fffaf0] px-3 py-1.5 text-[12px] font-bold text-msr-navy hover:border-msr-gold"
+                >
+                  <TrendingUp className="h-3.5 w-3.5 text-[#8a6a12]" />
+                  {row.display}
+                </Link>
+              ))}
+            </div>
+          ) : null}
           <button
             type="button"
             className="mt-4 text-sm font-semibold text-[#4b46ff]"

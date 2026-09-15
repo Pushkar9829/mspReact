@@ -1,12 +1,12 @@
 import { useEffect, useMemo, useState } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
-import { discount } from "../../shared/data/catalog.js";
+import { discount } from "../data/catalog.js";
 import { inr } from "../../shared/lib/format.js";
-import { priceForPack, mapLookup } from "../../shared/lib/mapProduct.js";
-import { SectionTitle } from "../../shared/components/ui.jsx";
+import { priceForPack, mapLookup } from "../lib/mapProduct.js";
+import { SectionTitle } from "../components/shopUi.jsx";
 import ProductCard, { PRODUCT_GRID } from "../components/ProductCard.jsx";
-import { useCart } from "../../shared/context/CartContext.jsx";
-import { useShopCatalog } from "../../shared/context/ShopCatalogContext.jsx";
+import { useCart } from "../context/CartContext.jsx";
+import { useShopCatalog } from "../context/ShopCatalogContext.jsx";
 import { api } from "../../shared/api.js";
 import {
   BadgeCheck,
