@@ -25,6 +25,8 @@ export function mapSession(data) {
     tenantId: tenantIdOf(data.user),
     permissions: data.user?.role?.permissions || [],
     token: data.accessToken,
+    ledgerBalance: data.user?.ledgerBalance ?? null,
+    ledgerUpdatedAt: data.user?.ledgerUpdatedAt || null,
   };
 }
 

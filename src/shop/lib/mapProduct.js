@@ -35,11 +35,16 @@ export function mapApiProduct(doc) {
     price: v.sellingPrice,
     mrp: v.listPrice,
     variantId: v._id,
+    stock: v.available != null ? Number(v.available) : null,
   })).filter((row) => row.pack);
   const defaultPack = spec.defaultPack || packPrices[0]?.pack || "";
   const chosen = packPrices.find((row) => row.pack === defaultPack) || packPrices[0];
   const tags = doc.tags || [];
-  const images = [...new Set((doc.images || []).filter(Boolean))];
+  const images = [...new Set((doc.images || []).filter((src) => src && !String(src).endsWith("/products/product.png")))];
+  const fallbackImage = "/products/placeholder.png";
+  const deliveryModes = Array.isArray(doc.deliveryModes) && doc.deliveryModes.length
+    ? doc.deliveryModes
+    : ["delivery_partner"];
   const categorySlug = doc.categoryId?.slug || "";
   return {
     id: String(doc.sku || "").toLowerCase(),
@@ -55,9 +60,13 @@ export function mapApiProduct(doc) {
     mrp: chosen?.mrp || chosen?.price || 0,
     rating: Number(spec.rating) || 4.5,
     reviews: Number(spec.reviews) || 0,
-    image: "/products/product.png",
-    gallery: ["/products/product.png"],
-    stock: 200,
+    image: images[0] || fallbackImage,
+    gallery: images.length ? images : [fallbackImage],
+    stock: doc.available != null || variants.some((v) => v.available != null)
+      ? Number(doc.available ?? variants.reduce((sum, v) => sum + (Number(v.available) || 0), 0))
+      : 200,
+    orderLimit: doc.wholesale?.maxQty ?? doc.orderLimit ?? null,
+    moq: doc.wholesale?.moq || 1,
     description: doc.description || "",
     features: spec.features || [],
     ingredients: spec.ingredients || "",
@@ -67,6 +76,8 @@ export function mapApiProduct(doc) {
     deal: tags.includes("deal"),
     newLaunch: tags.includes("new"),
     badge: tags.includes("bestseller") ? "Best seller" : "",
+    easyReturn: Boolean(doc.easyReturn ?? spec.easyReturn),
+    deliveryModes,
   };
 }
 

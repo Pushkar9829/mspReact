@@ -115,8 +115,16 @@ export const api = {
   createAddress: (body) => request("/api/v1/addresses", { method: "POST", body: JSON.stringify(body) }),
   updateAddress: (id, body) => request(`/api/v1/addresses/${id}`, { method: "PATCH", body: JSON.stringify(body) }),
   deleteAddress: (id) => request(`/api/v1/addresses/${id}`, { method: "DELETE" }),
-  previewCheckout: (addressId) =>
-    request("/api/v1/checkout/preview", { method: "POST", body: JSON.stringify({ addressId }) }),
+  previewCheckout: (addressId, deliveryPartnerId) =>
+    request("/api/v1/checkout/preview", {
+      method: "POST",
+      body: JSON.stringify({ addressId, ...(deliveryPartnerId ? { deliveryPartnerId } : {}) }),
+    }),
+  notifyRestock: (slug, body = {}) =>
+    request(`/api/v1/products/${encodeURIComponent(slug)}/notify-restock`, {
+      method: "POST",
+      body: JSON.stringify(body),
+    }),
   checkout: (body, idempotencyKey) =>
     request("/api/v1/checkout", {
       method: "POST",
@@ -194,4 +202,6 @@ export const api = {
   closeChat: (id) => request(`/api/v1/chat/${encodeURIComponent(id)}/close`, { method: "POST" }),
   listSettings: (query = {}) => request(`/api/v1/settings${qs(query)}`),
   upsertSetting: (key, value) => request(`/api/v1/settings/${encodeURIComponent(key)}`, { method: "PUT", body: JSON.stringify({ value }) }),
+  publicSettings: () => request("/api/v1/settings/public"),
+  getLedger: () => request("/api/v1/ledger/me"),
 };

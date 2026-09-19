@@ -16,14 +16,16 @@ export function ShopCatalogProvider({ children }) {
   const [products, setProducts] = useState(staticProducts);
   const [live, setLive] = useState(false);
   const [ready, setReady] = useState(false);
+  const [branding, setBranding] = useState({ name: "MSP Wholesale Marketplace", slogan: "भाव भी भरोसा भी" });
 
   useEffect(() => {
     let cancelled = false;
     (async () => {
       try {
-        const [catRes, search] = await Promise.all([
+        const [catRes, search, publicSettings] = await Promise.all([
           api.listCategories({ status: "active", parentId: "null" }),
           api.searchProducts({ limit: 100 }),
+          api.publicSettings().catch(() => null),
         ]);
         if (cancelled) return;
         const catRows = (Array.isArray(catRes) ? catRes : catRes.data || []).map(mapCategory).filter(Boolean);
@@ -32,6 +34,12 @@ export function ShopCatalogProvider({ children }) {
         if (productRows.length) {
           setProducts(productRows);
           setLiveCatalog(productRows);
+        }
+        if (publicSettings?.slogan || publicSettings?.name) {
+          setBranding({
+            name: publicSettings.name || "MSP Wholesale Marketplace",
+            slogan: publicSettings.slogan || "भाव भी भरोसा भी",
+          });
         }
         setLive(true);
       } catch {
@@ -53,10 +61,11 @@ export function ShopCatalogProvider({ children }) {
       categories,
       products,
       brands,
+      branding,
       getProduct: (id) => products.find((p) => p.id === id),
       filterProducts: (opts = {}) => filterRows(products, opts),
     };
-  }, [categories, products, live, ready]);
+  }, [categories, products, live, ready, branding]);
 
   return <ShopCatalogContext.Provider value={value}>{children}</ShopCatalogContext.Provider>;
 }

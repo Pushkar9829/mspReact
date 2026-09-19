@@ -9,6 +9,7 @@ import {
 } from "../context/AccountDrawerContext.jsx";
 
 import { useAuth } from "../../shared/context/AuthContext.jsx";
+import { inr } from "../../shared/lib/format.js";
 
 export default function AccountDrawer() {
   const { open, closeAccount } = useAccountDrawer();
@@ -102,6 +103,11 @@ export default function AccountDrawer() {
                 {user.email ? (
                   <p className="truncate text-xs text-[#8b8ea3]">
                     {user.email}
+                  </p>
+                ) : null}
+                {user.ledgerBalance != null ? (
+                  <p className="mt-1 text-xs font-bold text-[#0b1460]">
+                    Ledger {inr(user.ledgerBalance)}
                   </p>
                 ) : null}
               </div>

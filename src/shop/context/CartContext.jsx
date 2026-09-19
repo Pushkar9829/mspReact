@@ -30,6 +30,8 @@ function flattenQuote(quote) {
       mrp: i.listPrice,
       tax: i.tax,
       lineTotal: i.lineTotal,
+      fulfillmentMode: i.fulfillmentMode || "delivery_partner",
+      easyReturn: Boolean(i.easyReturn),
     }))
   );
 }
@@ -40,9 +42,15 @@ const emptyQuote = {
   subtotal: 0,
   tax: 0,
   deliveryFee: 0,
+  platformFee: 0,
+  partnerFee: 0,
   couponDiscount: 0,
   grandTotal: 0,
   couponCode: "",
+  deliveryPartner: null,
+  deliveryPartners: [],
+  deliveryPartnerChoiceEnabled: false,
+  platformFeeEnabled: false,
 };
 
 export function CartProvider({ children }) {
@@ -90,6 +98,8 @@ export function CartProvider({ children }) {
     const subtotal = live ? quote.subtotal : items.reduce((n, i) => n + i.price * i.qty, 0);
     const discount = live ? quote.couponDiscount || 0 : 0;
     const delivery = live ? quote.deliveryFee : subtotal >= 999 ? 0 : 40;
+    const platformFee = live ? quote.platformFee || 0 : 0;
+    const partnerFee = live ? quote.partnerFee || 0 : 0;
     const tax = live ? quote.tax : 0;
     const total = live ? quote.grandTotal : subtotal + delivery;
 
@@ -103,15 +113,24 @@ export function CartProvider({ children }) {
       subtotal,
       discount,
       delivery,
+      platformFee,
+      partnerFee,
+      deliveryPartner: quote.deliveryPartner || null,
+      deliveryPartners: quote.deliveryPartners || [],
+      deliveryPartnerChoiceEnabled: Boolean(quote.deliveryPartnerChoiceEnabled),
       tax,
       total,
       couponCode: quote.couponCode || "",
       refresh,
-      add: async (product, qty = 1, pack) => {
+      add: async (product, qty = 1, pack, fulfillmentMode) => {
         const packSize = pack || product.weight;
         try {
           const looked = await api.lookupProduct(product.id, packSize);
-          const next = await api.addCartItem({ variantId: looked.variant._id, qty });
+          const next = await api.addCartItem({
+            variantId: looked.variant._id,
+            qty,
+            fulfillmentMode: fulfillmentMode || product.fulfillmentMode,
+          });
           applyQuote(next);
         } catch {
           setItems((prev) => {

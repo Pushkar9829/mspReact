@@ -70,6 +70,8 @@ export default function Checkout() {
     subtotal,
     discount,
     delivery,
+    platformFee,
+    partnerFee,
     tax,
     total,
     couponCode,
@@ -95,6 +97,7 @@ export default function Checkout() {
   const [draft, setDraft] = useState(EMPTY_DRAFT);
 
   const [preview, setPreview] = useState(null);
+  const [partnerId, setPartnerId] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
 
@@ -171,10 +174,11 @@ export default function Checkout() {
 
     (async () => {
       try {
-        const next = await api.previewCheckout(addressId);
+        const next = await api.previewCheckout(addressId, partnerId);
 
         if (!cancelled) {
           setPreview(next);
+          if (!partnerId && next.deliveryPartner?.id) setPartnerId(next.deliveryPartner.id);
         }
       } catch {
         if (!cancelled) {
@@ -186,15 +190,20 @@ export default function Checkout() {
     return () => {
       cancelled = true;
     };
-  }, [addressId]);
+  }, [addressId, partnerId]);
 
   const totals = preview || {
     subtotal,
     couponDiscount: discount,
     deliveryFee: delivery,
+    platformFee,
+    partnerFee,
     tax,
     grandTotal: total,
   };
+  const partners = preview?.deliveryPartners || [];
+  const partnerChoice = Boolean(preview?.deliveryPartnerChoiceEnabled);
+  const hasDelivery = items.some((item) => item.fulfillmentMode !== "store_pickup");
 
   const payable = totals.grandTotal || 0;
 
@@ -304,6 +313,7 @@ export default function Checkout() {
               ? poNumber
               : "",
           buyerNotes: notes,
+          deliveryPartnerId: partnerId || undefined,
         },
         key
       );
@@ -595,6 +605,38 @@ export default function Checkout() {
               </div>
             </section>
 
+            {hasDelivery && partnerChoice && partners.length ? (
+              <section className="overflow-hidden rounded-2xl border border-[#e7e9ef] bg-white">
+                <SectionHeader
+                  number="01b"
+                  title="Delivery partner"
+                  description="Optional. If you skip this, we use our default partner."
+                  icon={MapPin}
+                />
+                <div className="grid gap-2.5 p-4 sm:grid-cols-2 sm:p-5">
+                  {partners.map((partner) => {
+                    const active = (partnerId || preview?.deliveryPartner?.id) === partner.id;
+                    return (
+                      <button
+                        key={partner.id}
+                        type="button"
+                        onClick={() => setPartnerId(partner.id)}
+                        className={`rounded-xl border p-3.5 text-left transition ${
+                          active ? "border-[#0b1460] bg-[#f7f8ff]" : "border-[#e7e9ef] hover:border-[#cfd3df]"
+                        }`}
+                      >
+                        <p className="text-[13px] font-extrabold text-[#171a38]">{partner.name}</p>
+                        <p className="mt-1 text-[11px] text-[#777c90]">
+                          {partner.fee ? `${inr(partner.fee)} partner charge` : "No extra partner charge"}
+                          {partner.isDefault ? " · Default" : ""}
+                        </p>
+                      </button>
+                    );
+                  })}
+                </div>
+              </section>
+            ) : null}
+
             {/* ==================================================
                 PAYMENT
             ================================================== */}
@@ -876,6 +918,20 @@ export default function Checkout() {
                     }
                     success={!totals.deliveryFee}
                   />
+
+                  {totals.platformFee ? (
+                    <SummaryRow
+                      label="Platform fee"
+                      value={inr(totals.platformFee)}
+                    />
+                  ) : null}
+
+                  {totals.partnerFee ? (
+                    <SummaryRow
+                      label={preview?.deliveryPartner?.name ? `${preview.deliveryPartner.name} charge` : "Partner charge"}
+                      value={inr(totals.partnerFee)}
+                    />
+                  ) : null}
 
                   {totals.tax ? (
                     <SummaryRow

@@ -4,6 +4,7 @@ import { ChevronDown, Heart, MapPin, ShoppingCart, UserRound } from "lucide-reac
 import { Logo } from "../../shared/components/ui.jsx";
 import { useCart } from "../context/CartContext.jsx";
 import { useAuth } from "../../shared/context/AuthContext.jsx";
+import { useShopCatalog } from "../context/ShopCatalogContext.jsx";
 import { useDeliveryLocation } from "../context/LocationContext.jsx";
 import { useAccountDrawer } from "../context/AccountDrawerContext.jsx";
 import SearchBar from "./SearchBar.jsx";
@@ -18,6 +19,7 @@ const nav = [
 export default function Header() {
   const { count } = useCart();
   const { user } = useAuth();
+  const { branding } = useShopCatalog();
   const { location, setLocation, open, setOpen, locations } = useDeliveryLocation();
   const { openAccount } = useAccountDrawer();
   const locRef = useRef(null);
@@ -35,7 +37,7 @@ export default function Header() {
     <header className="shop-header sticky top-0 z-40">
       <div className="msr-gutter relative flex h-16 items-center gap-3 lg:gap-5">
         <Link to="/" className="shrink-0" aria-label="MS₹ home">
-          <Logo light compact />
+          <Logo light compact slogan={branding?.slogan} />
         </Link>
 
         <div className="relative shrink-0" ref={locRef}>

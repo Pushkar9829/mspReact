@@ -38,6 +38,8 @@ export default function Cart() {
     subtotal,
     discount,
     delivery,
+    platformFee,
+    partnerFee,
     tax,
     total,
     couponCode,
@@ -1103,6 +1105,20 @@ export default function Cart() {
                       }
                       success={!delivery}
                     />
+
+                    {platformFee ? (
+                      <SummaryRow
+                        label="Platform fee"
+                        value={inr(platformFee)}
+                      />
+                    ) : null}
+
+                    {partnerFee ? (
+                      <SummaryRow
+                        label="Partner charge"
+                        value={inr(partnerFee)}
+                      />
+                    ) : null}
 
                     {tax ? (
                       <SummaryRow

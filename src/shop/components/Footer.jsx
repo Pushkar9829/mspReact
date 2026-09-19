@@ -1,6 +1,7 @@
 import { Link } from "react-router-dom";
 import { Logo } from "../../shared/components/ui.jsx";
 import { useAccountDrawer } from "../context/AccountDrawerContext.jsx";
+import { useShopCatalog } from "../context/ShopCatalogContext.jsx";
 
 const shop = [
   { to: "/category/all", label: "All products" },
@@ -20,6 +21,7 @@ const support = [
 
 export default function Footer() {
   const { openAccount } = useAccountDrawer();
+  const { branding } = useShopCatalog();
 
   return (
     <footer className="shop-footer mt-4">
@@ -27,10 +29,10 @@ export default function Footer() {
       <div className="msr-gutter relative z-10 grid gap-10 py-12 md:grid-cols-4">
         <div>
           <Link to="/" className="inline-block" aria-label="MS₹ home">
-            <Logo light />
+            <Logo light slogan={branding?.slogan} />
           </Link>
           <p className="mt-3 max-w-xs text-sm leading-relaxed text-white/75">
-            Your trusted FMCG marketplace for quality products at the best wholesale and retail prices.
+            {branding?.slogan || "भाव भी भरोसा भी"}. Your trusted FMCG marketplace for quality products at the best wholesale and retail prices.
           </p>
         </div>
 

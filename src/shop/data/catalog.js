@@ -168,9 +168,9 @@ export const products = [
     rating: 4.4,
     reviews: 3401,
     image:
-      "https://images.unsplash.com/photo-1612929633738-8fe44f7ec841?auto=format&fit=crop&w=640&q=80",
+      "https://images.unsplash.com/photo-1585032226651-759b368d7246?auto=format&fit=crop&w=640&q=80",
     gallery: [
-      "https://images.unsplash.com/photo-1612929633738-8fe44f7ec841?auto=format&fit=crop&w=800&q=80",
+      "https://images.unsplash.com/photo-1585032226651-759b368d7246?auto=format&fit=crop&w=800&q=80",
     ],
     stock: 500,
     description: "India’s favourite instant noodles. Fast-moving SKU for kirana and bulk buyers.",
@@ -179,6 +179,9 @@ export const products = [
     nutrition: "Energy 401 kcal / 100g.",
     manufacturer: "Nestlé India.",
     deal: true,
+    bestseller: true,
+    easyReturn: true,
+    deliveryModes: ["store_pickup", "delivery_partner"],
   },
   {
     id: "surf-excel",
@@ -413,7 +416,7 @@ export const products = [
     manufacturer: "Mahashian Di Hatti Pvt. Ltd.",
     newLaunch: true,
   },
-].map((p) => ({ ...p, image: "/products/product.png", gallery: ["/products/product.png"] }));
+];
 
 export function discount(product) {
   if (!product?.mrp || product.mrp <= product.price) return 0;

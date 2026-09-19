@@ -1,10 +1,11 @@
 import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
-import { KeyRound, LogOut, ShieldCheck, UserRound } from "lucide-react";
+import { KeyRound, LogOut, ShieldCheck, UserRound, Wallet } from "lucide-react";
 import { useAuth } from "../../shared/context/AuthContext.jsx";
 import { homeFor, ROLES } from "../../shared/auth.js";
 import { api } from "../../shared/api.js";
 import { AccountCard, AccountField, AccountHead, accountField } from "../components/accountUi.jsx";
+import { inr } from "../../shared/lib/format.js";
 
 export default function Account() {
   const { user, logout, patchUser } = useAuth();
@@ -19,6 +20,11 @@ export default function Account() {
   const [passMsg, setPassMsg] = useState("");
   const [passError, setPassError] = useState("");
   const [passBusy, setPassBusy] = useState(false);
+  const [ledger, setLedger] = useState({
+    balance: user?.ledgerBalance ?? null,
+    updatedAt: user?.ledgerUpdatedAt || null,
+    entries: [],
+  });
 
   useEffect(() => {
     let cancelled = false;
@@ -28,7 +34,29 @@ export default function Account() {
         if (cancelled) return;
         setName(me.name || "");
         setPhone(me.phone || "");
-        patchUser({ name: me.name, phone: me.phone || "" });
+        patchUser({
+          name: me.name,
+          phone: me.phone || "",
+          ledgerBalance: me.ledgerBalance,
+          ledgerUpdatedAt: me.ledgerUpdatedAt,
+        });
+        setLedger({
+          balance: me.ledgerBalance ?? 0,
+          updatedAt: me.ledgerUpdatedAt || null,
+          entries: me.ledgerEntries || [],
+        });
+      })
+      .catch(() => {});
+    api
+      .getLedger()
+      .then((row) => {
+        if (cancelled) return;
+        setLedger({
+          balance: row.balance ?? 0,
+          updatedAt: row.updatedAt || null,
+          entries: row.entries || [],
+        });
+        patchUser({ ledgerBalance: row.balance, ledgerUpdatedAt: row.updatedAt });
       })
       .catch(() => {});
     return () => {
@@ -91,6 +119,39 @@ export default function Account() {
           </div>
         </div>
       </div>
+
+      <AccountCard>
+        <div className="flex items-center gap-2">
+          <span className="grid h-8 w-8 place-items-center rounded-lg bg-[#fffaf0] text-[#8a6a12]">
+            <Wallet className="h-4 w-4" />
+          </span>
+          <p className="text-[11px] font-bold uppercase tracking-[0.14em] text-[#8a6a12]">Ledger balance</p>
+        </div>
+        <p className="mt-3 text-3xl font-extrabold text-msr-navy">
+          {ledger.balance == null ? "—" : inr(ledger.balance)}
+        </p>
+        <p className="mt-1 text-sm text-[#8b8ea3]">
+          {ledger.updatedAt ? `Updated ${new Date(ledger.updatedAt).toLocaleString("en-IN")}` : "Live account credit"}
+        </p>
+        {ledger.entries?.length ? (
+          <ul className="mt-4 divide-y border-t border-[#ece6d4] text-sm">
+            {ledger.entries.slice(0, 6).map((row) => (
+              <li key={row._id || row.createdAt} className="flex items-center justify-between gap-3 py-2.5">
+                <span>
+                  <span className="font-medium text-msr-navy">{row.note || row.type}</span>
+                  <span className="mt-0.5 block text-[12px] text-[#8b8ea3]">
+                    {row.createdAt ? new Date(row.createdAt).toLocaleDateString("en-IN") : ""}
+                  </span>
+                </span>
+                <span className={`font-bold ${row.type === "credit" ? "text-msr-success" : "text-msr-danger"}`}>
+                  {row.type === "credit" ? "+" : "−"}
+                  {inr(row.amount)}
+                </span>
+              </li>
+            ))}
+          </ul>
+        ) : null}
+      </AccountCard>
 
       <form onSubmit={saveProfile}>
         <AccountCard>

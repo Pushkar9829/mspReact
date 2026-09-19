@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
-import { Link, useLocation, useParams } from "react-router-dom";
-import { CheckCircle2 } from "lucide-react";
+import { Link, useLocation, useNavigate, useParams } from "react-router-dom";
+import { CheckCircle2, RotateCcw, Store, Truck } from "lucide-react";
 import { api } from "../../shared/api.js";
 import { formatDate, formatEta, inr } from "../../shared/lib/format.js";
 import { useAuth } from "../../shared/context/AuthContext.jsx";
@@ -9,8 +9,10 @@ export default function OrderConfirmation() {
   const { id } = useParams();
   const location = useLocation();
   const { user } = useAuth();
+  const navigate = useNavigate();
   const [orders, setOrders] = useState(location.state?.orders || []);
   const [error, setError] = useState("");
+  const [busyId, setBusyId] = useState("");
 
   useEffect(() => {
     if (orders.length || !user?.token) return undefined;
@@ -64,25 +66,44 @@ export default function OrderConfirmation() {
             </div>
 
             {order.items?.length ? (
-              <ul className="mt-5 space-y-3 border-t border-[#eceef4] pt-4">
-                {order.items.map((item) => (
-                  <li key={item.sku + item.qty} className="flex justify-between gap-3 text-sm">
-                    <span>
-                      <span className="font-medium text-[#1a1c3d]">{item.name}</span>
-                      <span className="block text-[#8b8ea3]">
-                        {item.attributes?.packSize || item.attributes?.size || item.sku} × {item.qty}
-                      </span>
-                    </span>
-                    <span className="font-semibold">{inr(item.lineTotal)}</span>
-                  </li>
-                ))}
-              </ul>
+              <div className="mt-5 space-y-4 border-t border-[#eceef4] pt-4">
+                <FulfillmentGroup
+                  title="Store pickup"
+                  icon={Store}
+                  items={order.items.filter((item) => item.fulfillmentMode === "store_pickup")}
+                />
+                <FulfillmentGroup
+                  title="Delivery partner"
+                  icon={Truck}
+                  items={order.items.filter((item) => item.fulfillmentMode !== "store_pickup")}
+                />
+              </div>
             ) : null}
 
-            <div className="mt-4 flex justify-between border-t border-[#eceef4] pt-4 text-base font-extrabold">
-              <span>Total</span>
-              <span>{inr(order.total)}</span>
-            </div>
+            <dl className="mt-4 space-y-2 border-t border-[#eceef4] pt-4 text-sm">
+              {order.deliveryFee ? (
+                <div className="flex justify-between text-[#6b7280]">
+                  <dt>Delivery</dt>
+                  <dd>{inr(order.deliveryFee)}</dd>
+                </div>
+              ) : null}
+              {order.platformFee ? (
+                <div className="flex justify-between text-[#6b7280]">
+                  <dt>Platform fee</dt>
+                  <dd>{inr(order.platformFee)}</dd>
+                </div>
+              ) : null}
+              {order.partnerFee || order.deliveryPartner?.name ? (
+                <div className="flex justify-between text-[#6b7280]">
+                  <dt>{order.deliveryPartner?.name ? `${order.deliveryPartner.name} charge` : "Partner charge"}</dt>
+                  <dd>{order.partnerFee ? inr(order.partnerFee) : "FREE"}</dd>
+                </div>
+              ) : null}
+              <div className="flex justify-between text-base font-extrabold text-[#1a1c3d]">
+                <dt>Total</dt>
+                <dd>{inr(order.total)}</dd>
+              </div>
+            </dl>
             {order.paymentMethod ? (
               <p className="mt-2 text-sm text-[#6b7280]">Paid via {payLabel[order.paymentMethod] || order.paymentMethod}</p>
             ) : null}
@@ -107,6 +128,28 @@ export default function OrderConfirmation() {
         ) : null}
 
         <div className="flex flex-wrap justify-center gap-3">
+          {primary?._id ? (
+            <button
+              type="button"
+              disabled={busyId === primary._id}
+              onClick={async () => {
+                setBusyId(primary._id);
+                setError("");
+                try {
+                  await api.reorder(primary._id);
+                  navigate("/cart");
+                } catch (err) {
+                  setError(err.message || "Could not add items again.");
+                } finally {
+                  setBusyId("");
+                }
+              }}
+              className="inline-flex items-center gap-2 rounded-xl bg-msr-gold px-5 py-3 text-sm font-semibold text-[#0b1460] disabled:opacity-60"
+            >
+              <RotateCcw className="h-4 w-4" />
+              {busyId === primary._id ? "Adding…" : "Buy again"}
+            </button>
+          ) : null}
           <Link to="/account/orders" className="rounded-xl bg-[#0b1460] px-5 py-3 text-sm font-semibold text-white">
             View orders
           </Link>
@@ -115,6 +158,32 @@ export default function OrderConfirmation() {
           </Link>
         </div>
       </div>
+    </div>
+  );
+}
+
+function FulfillmentGroup({ title, icon: Icon, items }) {
+  if (!items?.length) return null;
+  return (
+    <div>
+      <p className="flex items-center gap-2 text-[12px] font-bold uppercase tracking-[0.12em] text-msr-accent">
+        <Icon className="h-4 w-4" />
+        {title}
+      </p>
+      <ul className="mt-2 space-y-3">
+        {items.map((item) => (
+          <li key={`${item.sku}-${item.variantId || item.pack}-${item.qty}`} className="flex justify-between gap-3 text-sm">
+            <span>
+              <span className="font-medium text-[#1a1c3d]">{item.name}</span>
+              <span className="block text-[#8b8ea3]">
+                {item.attributes?.packSize || item.attributes?.size || item.sku} × {item.qty}
+                {item.easyReturn ? " · Easy return" : ""}
+              </span>
+            </span>
+            <span className="font-semibold">{inr(item.lineTotal)}</span>
+          </li>
+        ))}
+      </ul>
     </div>
   );
 }

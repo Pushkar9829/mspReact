@@ -7,6 +7,7 @@ import { SectionTitle } from "../components/shopUi.jsx";
 import ProductCard, { PRODUCT_GRID } from "../components/ProductCard.jsx";
 import { useCart } from "../context/CartContext.jsx";
 import { useShopCatalog } from "../context/ShopCatalogContext.jsx";
+import { useAuth } from "../../shared/context/AuthContext.jsx";
 import { api } from "../../shared/api.js";
 import {
   BadgeCheck,
@@ -28,10 +29,16 @@ export default function ProductDetails() {
   const [fetched, setFetched] = useState(null);
   const product = fetched?.id === id ? fetched : cached;
   const { add, isWished, toggleWish } = useCart();
+  const { user } = useAuth();
   const navigate = useNavigate();
   const [pack, setPack] = useState("");
   const [qty, setQty] = useState(1);
   const [photo, setPhoto] = useState(0);
+  const [packQty, setPackQty] = useState({});
+  const [fulfillment, setFulfillment] = useState("delivery_partner");
+  const [notifyEmail, setNotifyEmail] = useState("");
+  const [notifyMsg, setNotifyMsg] = useState("");
+  const [notifyBusy, setNotifyBusy] = useState(false);
 
   useEffect(() => {
     if (cached || !ready) return undefined;
@@ -54,7 +61,16 @@ export default function ProductDetails() {
     setPack(product.weight);
     setQty(1);
     setPhoto(0);
-  }, [id, product]);
+    const next = {};
+    (product.packPrices || []).forEach((row) => {
+      next[row.pack] = 0;
+    });
+    setPackQty(next);
+    const modes = product.deliveryModes?.length ? product.deliveryModes : ["delivery_partner"];
+    setFulfillment(modes.includes("delivery_partner") ? "delivery_partner" : modes[0]);
+    setNotifyEmail(user?.email || "");
+    setNotifyMsg("");
+  }, [id, product, user?.email]);
 
   const related = useMemo(() => {
     if (!product) return [];
@@ -83,15 +99,29 @@ export default function ProductDetails() {
   const cat = categories.find((c) => c.slug === product.category);
   const gallery = product.gallery?.length ? product.gallery : [product.image];
   const wished = isWished(product.id);
-  const stockLabel = product.stock < 100 ? "Limited stock" : "In stock";
+  const outOfStock = Number(product.stock) <= 0;
+  const orderLimit = product.orderLimit ? Number(product.orderLimit) : null;
+  const stockLabel = outOfStock ? "Out of stock" : product.stock < 100 ? "Limited stock" : "In stock";
   const badges = [
     product.deal ? "Deal of the day" : null,
     product.newLaunch ? "New launch" : null,
     product.bestseller || product.badge === "Best seller" ? "Bestseller" : null,
   ].filter(Boolean);
 
+  const deliveryModes = product.deliveryModes?.length ? product.deliveryModes : ["delivery_partner"];
+  const packRows = product.packPrices?.length
+    ? product.packPrices
+    : (product.packs || []).map((p) => ({ pack: p, ...priceForPack(product, p) }));
+
   async function addCart() {
-    await add(product, qty, pack || product.weight);
+    const selected = packRows.filter((row) => (packQty[row.pack] || 0) > 0);
+    if (!selected.length) {
+      await add(product, qty || 1, pack || product.weight, fulfillment);
+      return;
+    }
+    for (const row of selected) {
+      await add(product, packQty[row.pack], row.pack, fulfillment);
+    }
   }
 
   async function buyNow() {
@@ -140,77 +170,164 @@ export default function ProductDetails() {
             <RatingChip rating={product.rating} reviews={product.reviews} />
             <span
               className={`rounded-full px-2.5 py-1 text-[12px] font-semibold ${
-                product.stock < 100 ? "bg-amber-50 text-amber-800" : "bg-emerald-50 text-msr-success"
+                outOfStock
+                  ? "bg-red-50 text-msr-danger"
+                  : product.stock < 100
+                    ? "bg-amber-50 text-amber-800"
+                    : "bg-emerald-50 text-msr-success"
               }`}
             >
               {stockLabel}
             </span>
+            {orderLimit ? (
+              <span className="rounded-full bg-[#eef0ff] px-2.5 py-1 text-[12px] font-semibold text-[#0b1460]">
+                Max {orderLimit} per order
+              </span>
+            ) : null}
           </div>
 
           <div className="mt-6 border-y border-[#eceef4] py-5">
-            <div className="flex flex-wrap items-end gap-3">
+            <p className="text-[13px] text-[#8b8ea3]">
+              <span className="font-bold text-[#1a1c3d]">{inr(priced.mrp)}</span> MRP per unit
+            </p>
+            <div className="mt-2 flex flex-wrap items-end gap-3">
               <span className="text-[2rem] font-extrabold leading-none tracking-tight text-[#1a1c3d]">{inr(priced.price)}</span>
               <span className="pb-1 text-[15px] text-[#9aa0b5] line-through">{inr(priced.mrp)}</span>
               {off ? (
                 <span className="rounded-full bg-emerald-50 px-2.5 py-1 text-[12px] font-bold text-msr-success">{off}% off</span>
               ) : null}
             </div>
-            <p className="mt-2 text-[13px] text-[#8b8ea3]">Inclusive of GST · Invoice on checkout · Pack: {pack}</p>
+            <p className="mt-2 text-[13px] text-[#8b8ea3]">Inclusive of GST · Invoice on checkout · AK price for selected pack</p>
           </div>
 
-          <div className="mt-6">
-            <p className="text-[13px] font-bold uppercase tracking-[0.12em] text-[#8b8ea3]">Pack size</p>
-            <div className="mt-3 flex flex-wrap gap-2">
-              {product.packs?.map((p) => (
-                <button
-                  key={p}
-                  type="button"
-                  onClick={() => setPack(p)}
-                  className={`min-w-[4.5rem] rounded-xl border px-4 py-2.5 text-sm font-semibold transition ${
-                    pack === p
-                      ? "border-[#0b1460] bg-[#0b1460] text-white"
-                      : "border-[#e8eaef] bg-white text-[#1a1c3d] hover:border-[#cfd3ff]"
-                  }`}
-                >
-                  {p}
-                </button>
-              ))}
+          <div className="mt-5 rounded-2xl border border-[#eceef4] bg-[#f7f8fc] px-4 py-3 text-[13px] text-[#5b6280]">
+            <span className="inline-flex items-center gap-2 font-medium text-[#1a1c3d]">
+              <Truck className="h-4 w-4 text-msr-accent" />
+              Your order will be delivered in 1–2 days
+            </span>
+          </div>
+
+          {deliveryModes.length ? (
+            <div className="mt-6">
+              <p className="text-[13px] font-bold uppercase tracking-[0.12em] text-[#8b8ea3]">Delivery</p>
+              <div className="mt-3 flex flex-wrap gap-2">
+                {deliveryModes.map((mode) => (
+                  <button
+                    key={mode}
+                    type="button"
+                    onClick={() => setFulfillment(mode)}
+                    className={`rounded-xl border px-4 py-2.5 text-sm font-semibold transition ${
+                      fulfillment === mode
+                        ? "border-[#0b1460] bg-[#0b1460] text-white"
+                        : "border-[#e8eaef] bg-white text-[#1a1c3d] hover:border-[#cfd3ff]"
+                    }`}
+                  >
+                    {mode === "store_pickup" ? "Store pickup" : "Delivery partner"}
+                  </button>
+                ))}
+              </div>
             </div>
+          ) : null}
+
+          <div className="mt-6 overflow-hidden rounded-2xl border border-[#eceef4]">
+            <div className="grid grid-cols-[1fr_1fr_1fr] bg-[#f7f8fc] px-4 py-2 text-[11px] font-bold uppercase tracking-[0.08em] text-[#8b8ea3]">
+              <span>Pack of</span>
+              <span className="text-center">AK price/unit</span>
+              <span className="text-right text-msr-success">Margin</span>
+            </div>
+            {packRows.map((row) => {
+              const margin = discount({ price: row.price, mrp: row.mrp });
+              const current = packQty[row.pack] || 0;
+              const packStock = row.stock != null ? Number(row.stock) : product.stock;
+              const cap = Math.min(orderLimit || Infinity, packStock == null ? Infinity : packStock);
+              const packOut = packStock != null && packStock <= 0;
+              return (
+                <div key={row.pack} className="border-t border-[#eceef4] px-4 py-3">
+                  <div className="grid grid-cols-[1fr_1fr_1fr] items-center text-sm">
+                    <span className="font-bold text-[#1a1c3d]">{row.pack.replace(/pack/i, "").trim() || row.pack}</span>
+                    <span className="text-center font-extrabold text-[#1a1c3d]">{inr(row.price)}</span>
+                    <span className="text-right font-bold text-msr-success">{margin ? `${margin.toFixed(2)}%` : "—"}</span>
+                  </div>
+                  {packOut ? (
+                    <p className="mt-2 text-[12px] font-semibold text-msr-danger">Out of stock</p>
+                  ) : (
+                    <div className="mt-3 inline-flex w-full items-center overflow-hidden rounded-xl border border-[#e8eaef] bg-white">
+                      <button
+                        type="button"
+                        className="grid h-11 w-14 text-lg text-[#6b7280] hover:bg-[#f7f8fc]"
+                        onClick={() => setPackQty((prev) => ({ ...prev, [row.pack]: Math.max(0, (prev[row.pack] || 0) - 1) }))}
+                        aria-label={`Decrease ${row.pack}`}
+                      >
+                        −
+                      </button>
+                      <span className="flex-1 text-center text-[15px] font-bold">{current}</span>
+                      <button
+                        type="button"
+                        className="grid h-11 w-14 text-lg text-[#0b1460] hover:bg-[#f7f8fc]"
+                        onClick={() => {
+                          setPack(row.pack);
+                          setPackQty((prev) => ({
+                            ...prev,
+                            [row.pack]: Math.min(Number.isFinite(cap) ? cap : (prev[row.pack] || 0) + 1, (prev[row.pack] || 0) + 1),
+                          }));
+                        }}
+                        aria-label={`Increase ${row.pack}`}
+                      >
+                        +
+                      </button>
+                    </div>
+                  )}
+                </div>
+              );
+            })}
           </div>
 
-          <div className="mt-6">
-            <p className="text-[13px] font-bold uppercase tracking-[0.12em] text-[#8b8ea3]">Quantity</p>
-            <div className="mt-3 flex items-center gap-4">
-              <div className="inline-flex items-center overflow-hidden rounded-xl border border-[#e8eaef] bg-white">
+          {outOfStock ? (
+            <form
+              className="mt-6 rounded-2xl border border-[#eceef4] bg-[#f7f8fc] p-4"
+              onSubmit={async (e) => {
+                e.preventDefault();
+                setNotifyBusy(true);
+                setNotifyMsg("");
+                try {
+                  await api.notifyRestock(product.id, { email: notifyEmail || undefined });
+                  setNotifyMsg("We’ll notify you when this item is restocked.");
+                } catch (err) {
+                  setNotifyMsg(err.message || "Could not save alert.");
+                } finally {
+                  setNotifyBusy(false);
+                }
+              }}
+            >
+              <p className="text-sm font-bold text-[#1a1c3d]">Notify me when restocked</p>
+              <p className="mt-1 text-[12px] text-[#6b7280]">Get an alert so you can buy again as soon as stock is back.</p>
+              <div className="mt-3 flex flex-col gap-2 sm:flex-row">
+                <input
+                  type="email"
+                  required={!user?.email}
+                  value={notifyEmail}
+                  onChange={(e) => setNotifyEmail(e.target.value)}
+                  placeholder="Your email"
+                  className="h-11 flex-1 rounded-xl border border-[#e8eaef] bg-white px-3 text-sm outline-none focus:border-[#0b1460]"
+                />
                 <button
-                  type="button"
-                  className="grid h-11 w-11 text-lg text-[#6b7280] hover:bg-[#f7f8fc]"
-                  onClick={() => setQty((n) => Math.max(1, n - 1))}
-                  aria-label="Decrease quantity"
+                  type="submit"
+                  disabled={notifyBusy}
+                  className="rounded-xl bg-[#0b1460] px-4 py-2.5 text-sm font-bold text-white disabled:opacity-50"
                 >
-                  −
-                </button>
-                <span className="min-w-10 text-center text-[15px] font-bold">{qty}</span>
-                <button
-                  type="button"
-                  className="grid h-11 w-11 text-lg text-[#0b1460] hover:bg-[#f7f8fc]"
-                  onClick={() => setQty((n) => n + 1)}
-                  aria-label="Increase quantity"
-                >
-                  +
+                  {notifyBusy ? "Saving…" : "Notify me"}
                 </button>
               </div>
-              <p className="text-[13px] text-[#8b8ea3]">
-                {qty} × {pack} · {inr(priced.price * qty)}
-              </p>
-            </div>
-          </div>
+              {notifyMsg ? <p className="mt-2 text-[12px] text-[#5b6280]">{notifyMsg}</p> : null}
+            </form>
+          ) : null}
 
           <div className="mt-6 hidden gap-3 md:flex">
             <button
               type="button"
               onClick={addCart}
-              className="inline-flex flex-1 items-center justify-center gap-2 rounded-xl bg-[#0b1460] py-3.5 text-sm font-bold text-white hover:bg-[#070b2e]"
+              disabled={outOfStock}
+              className="inline-flex flex-1 items-center justify-center gap-2 rounded-xl bg-[#0b1460] py-3.5 text-sm font-bold text-white hover:bg-[#070b2e] disabled:opacity-40"
             >
               <ShoppingCart className="h-4 w-4" strokeWidth={2} />
               Add to cart
@@ -218,7 +335,8 @@ export default function ProductDetails() {
             <button
               type="button"
               onClick={buyNow}
-              className="inline-flex flex-1 items-center justify-center rounded-xl bg-msr-gold py-3.5 text-sm font-bold text-[#0b1460] hover:brightness-95"
+              disabled={outOfStock}
+              className="inline-flex flex-1 items-center justify-center rounded-xl bg-msr-gold py-3.5 text-sm font-bold text-[#0b1460] hover:brightness-95 disabled:opacity-40"
             >
               Buy now
             </button>
@@ -238,8 +356,12 @@ export default function ProductDetails() {
 
           <div className="mt-5 grid grid-cols-2 gap-3">
             <Trust to="/help" icon={ShieldCheck} title="100% genuine" text="Original brand packs" />
-            <Trust to="/help#shipping" icon={Truck} title="1–3 day delivery" text="Metro pincodes" />
-            <Trust to="/help#returns" icon={RotateCcw} title="Easy returns" text="7 days, unused packs" />
+            {deliveryModes.includes("delivery_partner") ? (
+              <Trust to="/help#shipping" icon={Truck} title="Delivery partner" text="Shipped to your shop" />
+            ) : (
+              <Trust to="/help#shipping" icon={Truck} title="Store pickup" text="Collect from warehouse" />
+            )}
+            {product.easyReturn ? <Trust to="/help#returns" icon={RotateCcw} title="Easy returns" text="7 days, unused packs" /> : null}
             <Trust to="/bulk" icon={FileText} title="GST invoice" text="For every order" />
           </div>
         </div>
@@ -329,10 +451,10 @@ export default function ProductDetails() {
             <p className="text-[15px] font-extrabold leading-none text-[#1a1c3d]">{inr(priced.price)}</p>
             <p className="mt-1 text-[11px] text-[#8b8ea3]">{pack}</p>
           </div>
-          <button type="button" onClick={addCart} className="flex-1 rounded-xl bg-[#0b1460] py-3 text-sm font-bold text-white">
-            Add
+          <button type="button" onClick={addCart} disabled={outOfStock} className="flex-1 rounded-xl bg-[#0b1460] py-3 text-sm font-bold text-white disabled:opacity-40">
+            {outOfStock ? "Notify" : "Add"}
           </button>
-          <button type="button" onClick={buyNow} className="flex-1 rounded-xl bg-msr-gold py-3 text-sm font-bold text-[#0b1460]">
+          <button type="button" onClick={buyNow} disabled={outOfStock} className="flex-1 rounded-xl bg-msr-gold py-3 text-sm font-bold text-[#0b1460] disabled:opacity-40">
             Buy
           </button>
           <button

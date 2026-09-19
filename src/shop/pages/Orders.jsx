@@ -184,7 +184,7 @@ export default function Orders() {
                   className="inline-flex items-center gap-1.5 rounded-full border border-[#ece6d4] px-4 py-1.5 text-[12px] font-bold text-msr-navy disabled:opacity-60"
                 >
                   <RotateCcw className="h-3.5 w-3.5" />
-                  {busyId === order._id ? "Adding…" : "Reorder"}
+                  {busyId === order._id ? "Adding…" : "Buy again"}
                 </button>
                 <span className="inline-flex items-center text-[12px] font-bold text-msr-navy">
                   View details
