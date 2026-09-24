@@ -5,13 +5,22 @@ import { prettyStatus, rowsOf } from "../../shared/auth.js";
 import { useApi } from "../../shared/hooks/useApi.js";
 import { useListQuery } from "../../shared/hooks/useListQuery.js";
 import { PanelState, PanelTable } from "../../shared/components/PanelTable.jsx";
-import { ActionBtn, FIELD, PanelModal, PanelPager, PanelToolbar, StatusBadge } from "../../shared/components/PanelKit.jsx";
+import { ActionBtn, FIELD, PanelModal, PanelPager, PanelTabs, PanelToolbar, StatusBadge } from "../../shared/components/PanelKit.jsx";
 import { COUPON_STATUSES, OFFER_STATUSES, metaOf, rowId, statusOptions } from "../../shared/lib/panel.js";
+
+function pad(n) {
+  return String(n).padStart(2, "0");
+}
 
 function isoInput(daysFromNow) {
   const d = new Date();
   d.setDate(d.getDate() + daysFromNow);
-  return d.toISOString().slice(0, 16);
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
+}
+
+function localToIso(value) {
+  const d = new Date(value);
+  return Number.isNaN(d.getTime()) ? value : d.toISOString();
 }
 
 export default function Offers() {
@@ -21,6 +30,7 @@ export default function Offers() {
   const coupons = useApi(() => api.listCoupons(couponsQuery.query), [couponsQuery.query]);
   const offerRows = rowsOf(offers.data);
   const couponRows = rowsOf(coupons.data);
+  const [tab, setTab] = useState("offers");
   const [open, setOpen] = useState("");
   const [msg, setMsg] = useState("");
   const [busy, setBusy] = useState("");
@@ -35,8 +45,8 @@ export default function Offers() {
         name: String(form.get("name") || "").trim(),
         type: String(form.get("type") || "percent"),
         value: Number(form.get("value") || 0),
-        startsAt: form.get("startsAt"),
-        endsAt: form.get("endsAt"),
+        startsAt: localToIso(form.get("startsAt")),
+        endsAt: localToIso(form.get("endsAt")),
         status: "draft",
       });
       setOpen("");
@@ -103,18 +113,26 @@ export default function Offers() {
           <h1 className="text-2xl font-extrabold">Offers</h1>
           <p className="mt-1 text-sm text-msr-muted">Catalog promotions and checkout coupons.</p>
         </div>
-        <div className="flex gap-2">
-          <button type="button" onClick={() => setOpen("offer")} className="rounded-xl border border-msr-border px-4 py-2 text-sm font-bold">
-            New offer
-          </button>
-          <button type="button" onClick={() => setOpen("coupon")} className="rounded-xl bg-msr-navy px-4 py-2 text-sm font-bold text-white">
-            New coupon
-          </button>
-        </div>
+        <button
+          type="button"
+          onClick={() => setOpen(tab === "coupons" ? "coupon" : "offer")}
+          className="rounded-lg bg-msr-navy px-3 py-1.5 text-[13px] font-semibold text-white"
+        >
+          {tab === "coupons" ? "New coupon" : "New offer"}
+        </button>
       </div>
       {msg ? <p className="mt-3 text-sm text-msr-danger">{msg}</p> : null}
+      <PanelTabs
+        value={tab}
+        onChange={setTab}
+        tabs={[
+          { id: "offers", label: "Catalog offers" },
+          { id: "coupons", label: "Coupons" },
+        ]}
+      />
 
-      <h2 className="mt-6 text-sm font-bold uppercase tracking-wide text-msr-muted">Catalog offers</h2>
+      {tab === "offers" ? (
+      <>
       <PanelToolbar
         search={offersQuery.q}
         onSearch={offersQuery.setQ}
@@ -153,8 +171,9 @@ export default function Offers() {
         />
       </PanelState>
       <PanelPager meta={metaOf(offers.data)} page={offersQuery.page} onPage={offersQuery.setPage} />
-
-      <h2 className="mt-8 text-sm font-bold uppercase tracking-wide text-msr-muted">Coupons</h2>
+      </>
+      ) : (
+      <>
       <PanelToolbar
         search={couponsQuery.q}
         onSearch={couponsQuery.setQ}
@@ -193,6 +212,8 @@ export default function Offers() {
         />
       </PanelState>
       <PanelPager meta={metaOf(coupons.data)} page={couponsQuery.page} onPage={couponsQuery.setPage} />
+      </>
+      )}
 
       {open === "offer" ? (
         <PanelModal title="Create offer" onClose={() => setOpen("")}>

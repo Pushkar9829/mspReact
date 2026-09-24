@@ -14,6 +14,7 @@ export default function Inventory() {
   const rows = rowsOf(data);
   const warehouseRows = Array.isArray(warehouses.data) ? warehouses.data : rowsOf(warehouses.data);
   const [adjust, setAdjust] = useState(null);
+  const [reason, setReason] = useState("inward");
   const [msg, setMsg] = useState("");
   const [busy, setBusy] = useState(false);
   const [exporting, setExporting] = useState(false);
@@ -24,12 +25,19 @@ export default function Inventory() {
     setBusy(true);
     setMsg("");
     const form = new FormData(e.currentTarget);
+    const nextReason = String(form.get("reason") || "inward");
+    const qty = Number(form.get("qty") || 0);
+    if (nextReason === "damage" && qty <= 0) {
+      setMsg("Enter a positive number of damaged units.");
+      setBusy(false);
+      return;
+    }
     try {
       await api.adjustInventory({
         warehouseId: adjust.warehouseId?._id || adjust.warehouseId,
         variantId: adjust.variantId?._id || adjust.variantId,
-        reason: String(form.get("reason") || "inward"),
-        qty: Number(form.get("qty") || 0),
+        reason: nextReason,
+        qty,
         note: String(form.get("note") || ""),
       });
       setAdjust(null);
@@ -101,7 +109,14 @@ export default function Inventory() {
               key: "actions",
               label: "",
               render: (row) => (
-                <button type="button" className="text-xs font-bold text-msr-purple" onClick={() => setAdjust(row)}>
+                <button
+                  type="button"
+                  className="text-xs font-bold text-msr-purple"
+                  onClick={() => {
+                    setReason("inward");
+                    setAdjust(row);
+                  }}
+                >
                   Adjust
                 </button>
               ),
@@ -113,13 +128,21 @@ export default function Inventory() {
       {adjust ? (
         <PanelModal title={`Adjust ${adjust.sku || adjust.variantId?.sku || "stock"}`} onClose={() => setAdjust(null)}>
           <form className="grid gap-3" onSubmit={saveAdjust}>
-            <select name="reason" className={FIELD} defaultValue="inward">
+            <select name="reason" className={FIELD} value={reason} onChange={(e) => setReason(e.target.value)}>
               <option value="inward">Inward / add</option>
               <option value="adjustment">Adjustment</option>
               <option value="damage">Damage</option>
               <option value="return">Return</option>
             </select>
-            <input name="qty" type="number" required placeholder="Qty (use negative to reduce)" className={FIELD} />
+            <input
+              name="qty"
+              type="number"
+              required
+              min={reason === "damage" ? 1 : undefined}
+              step="1"
+              placeholder={reason === "damage" ? "Units damaged (positive)" : "Qty (negative reduces stock)"}
+              className={FIELD}
+            />
             <input name="note" placeholder="Note (optional)" className={FIELD} />
             {msg ? <p className="text-sm text-msr-danger">{msg}</p> : null}
             <button disabled={busy} className="rounded-xl bg-msr-navy py-2.5 font-bold text-white disabled:opacity-50">

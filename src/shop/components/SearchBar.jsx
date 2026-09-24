@@ -126,8 +126,8 @@ export default function SearchBar() {
 
   return (
     <div className="relative min-w-0 flex-1" ref={boxRef}>
-      <form onSubmit={onSubmit}>
-        <Search className="pointer-events-none absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-msr-muted" />
+      <form onSubmit={onSubmit} className="relative flex h-11 items-center rounded-xl bg-white ring-1 ring-transparent transition focus-within:ring-4 focus-within:ring-msr-primary/25">
+        <Search className="pointer-events-none absolute left-3.5 top-1/2 h-[18px] w-[18px] -translate-y-1/2 text-msr-subtle" />
         <input
           value={q}
           onChange={(e) => {
@@ -135,19 +135,35 @@ export default function SearchBar() {
             setOpen(true);
           }}
           onFocus={() => setOpen(true)}
-          placeholder="Search products, brands..."
+          placeholder="Search for atta, oil, tea, brands..."
           autoComplete="off"
           role="combobox"
           aria-expanded={showPanel}
           aria-controls="search-suggestions"
-          className="h-10 w-full rounded-full bg-white pl-10 pr-4 text-sm text-msr-text outline-none placeholder:text-[#8b8ea3] focus:ring-2 focus:ring-msr-accent-light/70"
+          className="h-full min-w-0 flex-1 rounded-xl bg-transparent pl-11 pr-2 text-sm text-msr-ink outline-none placeholder:text-msr-subtle"
         />
+        {q ? (
+          <button
+            type="button"
+            onClick={() => setQ("")}
+            className="grid h-8 w-8 shrink-0 place-items-center rounded-lg text-msr-subtle hover:bg-msr-surface hover:text-msr-ink"
+            aria-label="Clear search"
+          >
+            <X className="h-4 w-4" />
+          </button>
+        ) : null}
+        <button
+          type="submit"
+          className="m-1 hidden h-9 shrink-0 items-center rounded-lg bg-msr-primary px-4 text-[13px] font-semibold text-white transition-colors hover:bg-msr-primary-hover sm:inline-flex"
+        >
+          Search
+        </button>
       </form>
 
       {showPanel ? (
         <div
           id="search-suggestions"
-          className="absolute left-0 right-0 top-[calc(100%+8px)] z-50 overflow-hidden rounded-2xl border border-[#ece6d4] bg-white shadow-[0_18px_40px_rgba(8,10,61,0.16)]"
+          className="msr-fade absolute left-0 right-0 top-[calc(100%+8px)] z-50 overflow-hidden rounded-2xl border border-msr-line bg-white text-msr-ink shadow-pop"
         >
           <div className="max-h-[min(70vh,28rem)] overflow-y-auto">
             {typed.length >= 2 ? (
@@ -156,18 +172,18 @@ export default function SearchBar() {
                 onClick={() => go(q)}
                 className="flex w-full items-center gap-3 px-4 py-3 text-left text-sm hover:bg-msr-bg"
               >
-                <Search className="h-4 w-4 shrink-0 text-[#8a6a12]" />
-                <span className="min-w-0 truncate text-msr-navy">
+                <Search className="h-4 w-4 shrink-0 text-msr-primary" />
+                <span className="min-w-0 truncate text-msr-ink">
                   Search for <span className="font-bold">“{q.trim()}”</span>
                 </span>
               </button>
             ) : null}
 
             {recentShown.length ? (
-              <section className="border-t border-[#f0eee6] px-3 py-3 first:border-t-0">
+              <section className="border-t border-msr-line px-3 py-3 first:border-t-0">
                 <div className="mb-1.5 flex items-center justify-between px-1">
-                  <p className="text-[11px] font-bold uppercase tracking-[0.14em] text-[#8a6a12]">Recent searches</p>
-                  <button type="button" onClick={clearRecent} className="text-[11px] font-bold text-[#8b8ea3] hover:text-msr-navy">
+                  <p className="text-[11px] font-bold uppercase tracking-[0.14em] text-msr-muted">Recent searches</p>
+                  <button type="button" onClick={clearRecent} className="text-[11px] font-bold text-msr-muted hover:text-msr-navy">
                     Clear
                   </button>
                 </div>
@@ -180,13 +196,13 @@ export default function SearchBar() {
                           onClick={() => go(row.display)}
                           className="flex min-w-0 flex-1 items-center gap-3 px-2 py-2.5 text-left text-sm text-msr-navy"
                         >
-                          <Clock3 className="h-4 w-4 shrink-0 text-[#8b8ea3]" />
+                          <Clock3 className="h-4 w-4 shrink-0 text-msr-muted" />
                           <span className="truncate font-medium">{row.display}</span>
                         </button>
                         <button
                           type="button"
                           onClick={(e) => removeRecent(row, e)}
-                          className="mr-1 grid h-8 w-8 place-items-center rounded-full text-[#9aa0b4] opacity-0 hover:bg-white hover:text-msr-navy group-hover:opacity-100"
+                          className="mr-1 grid h-8 w-8 place-items-center rounded-full text-msr-muted opacity-0 hover:bg-white hover:text-msr-navy group-hover:opacity-100"
                           aria-label={`Remove ${row.display}`}
                         >
                           <X className="h-3.5 w-3.5" />
@@ -199,8 +215,8 @@ export default function SearchBar() {
             ) : null}
 
             {popularShown.length ? (
-              <section className="border-t border-[#f0eee6] px-3 py-3 first:border-t-0">
-                <p className="mb-2 px-1 text-[11px] font-bold uppercase tracking-[0.14em] text-[#8a6a12]">
+              <section className="border-t border-msr-line px-3 py-3 first:border-t-0">
+                <p className="mb-2 px-1 text-[11px] font-bold uppercase tracking-[0.14em] text-msr-muted">
                   Popular searches
                 </p>
                 <div className="flex flex-wrap gap-2 px-1 pb-1">
@@ -209,9 +225,9 @@ export default function SearchBar() {
                       key={`p-${row.term}`}
                       type="button"
                       onClick={() => go(row.display)}
-                      className="inline-flex items-center gap-1.5 rounded-full border border-[#ece6d4] bg-[#fffaf0] px-3 py-1.5 text-[12px] font-bold text-msr-navy hover:border-msr-gold"
+                      className="inline-flex items-center gap-1.5 rounded-full border border-msr-line bg-white px-3 py-1.5 text-[12px] font-semibold text-msr-ink transition-colors hover:border-msr-primary hover:text-msr-primary"
                     >
-                      <TrendingUp className="h-3.5 w-3.5 text-[#8a6a12]" />
+                      <TrendingUp className="h-3.5 w-3.5 text-msr-primary" />
                       {row.display}
                     </button>
                   ))}

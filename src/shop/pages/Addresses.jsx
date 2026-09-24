@@ -141,7 +141,7 @@ export default function Addresses() {
       />
 
       {error ? <p className="mt-4 text-sm text-msr-danger">{error}</p> : null}
-      {loading ? <p className="mt-8 text-sm text-[#8b8ea3]">Loading addresses…</p> : null}
+      {loading ? <p className="mt-8 text-sm text-msr-muted">Loading addresses…</p> : null}
 
       {!loading && !addresses.length && !formOpen ? (
         <AccountEmpty icon={MapPin} title="No addresses yet" text="Add a shop or home delivery point for faster checkout.">
@@ -159,15 +159,15 @@ export default function Addresses() {
       <ul className="mt-6 grid gap-3 md:grid-cols-2">
         {addresses.map((a) => (
           <li key={a._id}>
-            <AccountCard className={a.isDefault ? "ring-1 ring-[#ead9a0]" : ""}>
+            <AccountCard className={a.isDefault ? "ring-1 ring-msr-line" : ""}>
               <div className="flex items-start gap-3">
-                <span className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-[#fffaf0] text-[#8a6a12]">
+                <span className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-msr-surface text-msr-muted">
                   <MapPin className="h-5 w-5" />
                 </span>
                 <div className="min-w-0 flex-1">
                   <div className="flex flex-wrap items-center gap-2">
                     <p className="font-extrabold text-msr-navy">{a.contactName}</p>
-                    <span className="rounded-full bg-[#fffaf0] px-2 py-0.5 text-[11px] font-bold uppercase tracking-wide text-[#8a6a12]">
+                    <span className="rounded-full bg-msr-surface px-2 py-0.5 text-[11px] font-bold uppercase tracking-wide text-msr-muted">
                       {a.label || "Home"}
                     </span>
                     {a.isDefault ? (
@@ -177,7 +177,7 @@ export default function Addresses() {
                       </span>
                     ) : null}
                   </div>
-                  <p className="mt-2 text-sm leading-6 text-[#6b7280]">
+                  <p className="mt-2 text-sm leading-6 text-msr-muted">
                     {a.addressLine1}
                     {a.addressLine2 ? `, ${a.addressLine2}` : ""}
                     <br />
@@ -197,7 +197,7 @@ export default function Addresses() {
                     type="button"
                     disabled={busyId === a._id}
                     onClick={() => makeDefault(a._id)}
-                    className="rounded-full border border-[#ece6d4] px-3 py-1.5 text-[12px] font-bold text-msr-navy disabled:opacity-60"
+                    className="rounded-full border border-msr-line px-3 py-1.5 text-[12px] font-bold text-msr-navy disabled:opacity-60"
                   >
                     Set default
                   </button>
@@ -205,7 +205,7 @@ export default function Addresses() {
                 <button
                   type="button"
                   onClick={() => openEdit(a)}
-                  className="inline-flex items-center gap-1 rounded-full border border-[#ece6d4] px-3 py-1.5 text-[12px] font-bold text-msr-navy"
+                  className="inline-flex items-center gap-1 rounded-full border border-msr-line px-3 py-1.5 text-[12px] font-bold text-msr-navy"
                 >
                   <Pencil className="h-3.5 w-3.5" />
                   Edit
@@ -305,7 +305,7 @@ export default function Addresses() {
               >
                 {saving ? "Saving…" : "Save address"}
               </button>
-              <button type="button" onClick={() => setFormOpen(false)} className="px-3 text-sm font-bold text-[#6b7280]">
+              <button type="button" onClick={() => setFormOpen(false)} className="px-3 text-sm font-bold text-msr-muted">
                 Cancel
               </button>
             </div>

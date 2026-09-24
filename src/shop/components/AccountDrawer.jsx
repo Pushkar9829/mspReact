@@ -1,6 +1,6 @@
 import { useEffect } from "react";
 import { Link, useLocation } from "react-router-dom";
-import { ChevronRight, X, UserRound, LogOut, LockKeyhole } from "lucide-react";
+import { ChevronRight, X, LogOut, LockKeyhole, Wallet } from "lucide-react";
 
 import {
   useAccountDrawer,
@@ -10,6 +10,7 @@ import {
 
 import { useAuth } from "../../shared/context/AuthContext.jsx";
 import { inr } from "../../shared/lib/format.js";
+import { buttonClass } from "./shopUi.jsx";
 
 export default function AccountDrawer() {
   const { open, closeAccount } = useAccountDrawer();
@@ -38,187 +39,116 @@ export default function AccountDrawer() {
 
   if (!open) return null;
 
+  const initial = (user?.name || user?.email || "U").charAt(0).toUpperCase();
+
   return (
-    <div className="fixed inset-0 z-50">
-      {/* Backdrop */}
+    <div className="fixed inset-0 z-50" role="dialog" aria-modal="true" aria-label="My account">
       <button
         type="button"
         aria-label="Close account drawer"
         onClick={closeAccount}
-        className="absolute inset-0 bg-black/40 backdrop-blur-[2px]"
+        className="msr-fade absolute inset-0 bg-msr-brand/40 backdrop-blur-[2px]"
       />
 
-      {/* Drawer */}
-      <aside className="absolute inset-y-0 right-0 flex w-full max-w-md flex-col bg-white shadow-2xl">
-        <div className="h-[3px] bg-gradient-to-r from-msr-gold via-[#ead9a0] to-msr-gold" />
-        {/* Header */}
-        <div className="flex items-center justify-between border-b border-[#eceef4] px-5 py-4">
-          <div className="flex min-w-0 items-center gap-3">
-            <div className="grid h-10 w-10 shrink-0 place-items-center rounded-full bg-[#eef0ff] text-[#0b1460]">
-              <UserRound className="h-5 w-5" />
-            </div>
-
-            <div className="min-w-0">
-              <h2 className="text-base font-extrabold text-[#1a1c3d]">
-                My Account
-              </h2>
-
-              {user ? (
-                <p className="mt-0.5 truncate text-xs text-[#8b8ea3]">
-                  {user.name || user.email}
-                </p>
-              ) : (
-                <p className="mt-0.5 text-xs text-[#8b8ea3]">
-                  Manage your account
-                </p>
-              )}
-            </div>
-          </div>
-
+      <aside className="absolute inset-y-0 right-0 flex w-full max-w-sm flex-col bg-msr-surface shadow-pop">
+        <div className="flex items-center justify-between px-5 pb-3 pt-5">
+          <h2 className="text-base font-extrabold text-msr-ink">My account</h2>
           <button
             type="button"
             onClick={closeAccount}
             aria-label="Close"
-            className="grid h-10 w-10 shrink-0 place-items-center rounded-full text-[#6b7280] transition hover:bg-[#f4f5f9] hover:text-[#1a1c3d]"
+            className="grid h-9 w-9 place-items-center rounded-xl text-msr-muted transition hover:bg-white hover:text-msr-ink"
           >
             <X className="h-5 w-5" />
           </button>
         </div>
 
-        {/* User Info */}
         {user ? (
-          <div className="border-b border-[#eceef4] bg-[#fafbff] px-5 py-4">
-            <div className="flex items-center gap-3">
-              <div className="grid h-11 w-11 place-items-center rounded-full bg-[#0b1460] text-sm font-bold text-white">
-                {(user.name || user.email || "U")
-                  .charAt(0)
-                  .toUpperCase()}
+          <>
+            <div className="mx-4 rounded-2xl bg-msr-brand p-4 text-white">
+              <div className="flex items-center gap-3">
+                <div className="grid h-12 w-12 shrink-0 place-items-center rounded-full bg-white/15 text-lg font-bold">
+                  {initial}
+                </div>
+                <div className="min-w-0">
+                  <p className="truncate text-[15px] font-bold">{user.name || "Welcome back"}</p>
+                  {user.email ? <p className="truncate text-[12px] text-white/60">{user.email}</p> : null}
+                </div>
               </div>
-
-              <div className="min-w-0">
-                <p className="truncate text-sm font-bold text-[#1a1c3d]">
-                  {user.name || "Welcome back"}
-                </p>
-
-                {user.email ? (
-                  <p className="truncate text-xs text-[#8b8ea3]">
-                    {user.email}
-                  </p>
-                ) : null}
-                {user.ledgerBalance != null ? (
-                  <p className="mt-1 text-xs font-bold text-[#0b1460]">
-                    Ledger {inr(user.ledgerBalance)}
-                  </p>
-                ) : null}
-              </div>
+              {user.ledgerBalance != null ? (
+                <div className="mt-4 flex items-center justify-between rounded-xl bg-white/[0.08] px-3 py-2.5">
+                  <span className="flex items-center gap-2 text-[12px] text-white/70">
+                    <Wallet className="h-4 w-4 text-msr-gold" />
+                    Ledger balance
+                  </span>
+                  <span className="text-[14px] font-bold">{inr(user.ledgerBalance)}</span>
+                </div>
+              ) : null}
             </div>
-          </div>
-        ) : null}
 
-        {/* Navigation */}
-        {user ? (
-          <nav className="min-h-0 flex-1 overflow-y-auto p-4">
-            <p className="mb-2 px-2 text-[11px] font-bold uppercase tracking-wider text-[#9ca0b2]">
-              Account
-            </p>
-
-            <div className="space-y-1">
-              {ACCOUNT_TABS.map((item) => {
-                const active = isAccountTabActive(pathname, item.to);
-
-                const Icon = item.icon;
-
-                return (
-                  <Link
-                    key={item.id}
-                    to={item.to}
-                    onClick={closeAccount}
-                    className={[
-                      "group flex items-center gap-3 rounded-xl px-3 py-3.5 text-sm transition",
-                      active
-                        ? "bg-[#0b1460] font-semibold text-white shadow-sm"
-                        : "text-[#1a1c3d] hover:bg-[#f5f6fa]",
-                    ].join(" ")}
-                  >
-                    <span
-                      className={[
-                        "grid h-9 w-9 shrink-0 place-items-center rounded-lg transition",
-                        active
-                          ? "bg-white/10"
-                          : "bg-[#f5f6fa] group-hover:bg-white",
-                      ].join(" ")}
+            <nav className="msr-pane min-h-0 flex-1 overflow-y-auto p-4">
+              <div className="overflow-hidden rounded-2xl border border-msr-line bg-white">
+                {ACCOUNT_TABS.map((item, i) => {
+                  const active = isAccountTabActive(pathname, item.to);
+                  const Icon = item.icon;
+                  return (
+                    <Link
+                      key={item.id}
+                      to={item.to}
+                      onClick={closeAccount}
+                      className={`group flex items-center gap-3 px-4 py-3 text-[13.5px] transition-colors ${
+                        i ? "border-t border-msr-line" : ""
+                      } ${active ? "bg-msr-primary-soft font-semibold text-msr-primary-ink" : "text-msr-ink hover:bg-msr-surface"}`}
                     >
-                      <Icon className="h-[18px] w-[18px]" />
-                    </span>
+                      <Icon className={`h-[18px] w-[18px] shrink-0 ${active ? "text-msr-primary" : "text-msr-muted"}`} />
+                      <span className="min-w-0 flex-1 truncate">{item.label}</span>
+                      <ChevronRight className="h-4 w-4 shrink-0 text-msr-subtle transition-transform group-hover:translate-x-0.5" />
+                    </Link>
+                  );
+                })}
+              </div>
+            </nav>
 
-                    <span className="min-w-0 flex-1 truncate">
-                      {item.label}
-                    </span>
-
-                    <ChevronRight
-                      className={[
-                        "h-4 w-4 shrink-0 transition-transform",
-                        active
-                          ? "opacity-100"
-                          : "opacity-40 group-hover:translate-x-0.5",
-                      ].join(" ")}
-                    />
-                  </Link>
-                );
-              })}
+            <div className="border-t border-msr-line bg-white p-4">
+              <button
+                type="button"
+                onClick={() => {
+                  logout();
+                  closeAccount();
+                }}
+                className="flex h-11 w-full items-center justify-center gap-2 rounded-xl border border-msr-line-strong text-[13px] font-semibold text-msr-danger transition hover:border-msr-danger hover:bg-msr-danger-soft"
+              >
+                <LogOut className="h-4 w-4" />
+                Sign out
+              </button>
             </div>
-          </nav>
+          </>
         ) : (
-          /* Guest State */
           <div className="flex flex-1 flex-col items-center justify-center px-8 text-center">
-            <div className="grid h-16 w-16 place-items-center rounded-2xl bg-[#eef0ff] text-[#0b1460]">
+            <div className="grid h-16 w-16 place-items-center rounded-2xl bg-msr-primary-soft text-msr-primary">
               <LockKeyhole className="h-7 w-7" />
             </div>
-
-            <h3 className="mt-5 text-lg font-extrabold text-[#1a1c3d]">
-              Sign in to your account
-            </h3>
-
-            <p className="mt-2 max-w-xs text-sm leading-6 text-[#73778c]">
-              Manage your orders, addresses, saved items and account details
-              from one place.
+            <h3 className="mt-5 text-lg font-extrabold text-msr-ink">Sign in to your account</h3>
+            <p className="mt-2 max-w-xs text-sm leading-6 text-msr-muted">
+              Track orders, manage addresses and saved items from one place.
             </p>
-
             <Link
               to="/login"
               state={{ from: pathname || "/account" }}
               onClick={closeAccount}
-              className="mt-6 w-full rounded-xl bg-[#0b1460] px-4 py-3.5 text-center text-sm font-bold text-white shadow-sm transition hover:bg-[#08104d]"
+              className={buttonClass({ size: "lg", block: true, className: "mt-6" })}
             >
               Sign in
             </Link>
-
             <Link
               to="/register"
               onClick={closeAccount}
-              className="mt-4 text-sm font-bold text-[#0b1460] hover:underline"
+              className={buttonClass({ variant: "secondary", size: "lg", block: true, className: "mt-3" })}
             >
               Create an account
             </Link>
           </div>
         )}
-
-        {/* Footer */}
-        {user ? (
-          <div className="border-t border-[#eceef4] bg-white p-4">
-            <button
-              type="button"
-              onClick={() => {
-                logout();
-                closeAccount();
-              }}
-              className="flex w-full items-center justify-center gap-2 rounded-xl border border-red-100 px-4 py-3 text-sm font-bold text-msr-danger transition hover:bg-red-50"
-            >
-              <LogOut className="h-4 w-4" />
-              Sign out
-            </button>
-          </div>
-        ) : null}
       </aside>
     </div>
   );

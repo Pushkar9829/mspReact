@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
+import { ChevronLeft, ChevronRight } from "lucide-react";
 
 const BANNERS = [
   {
@@ -28,7 +29,7 @@ const BANNERS = [
   },
 ];
 
-export default function Hero() {
+export default function Hero({ className = "" }) {
   const [index, setIndex] = useState(0);
   const [hover, setHover] = useState(false);
   const [reduceMotion, setReduceMotion] = useState(false);
@@ -49,9 +50,13 @@ export default function Hero() {
     return () => clearInterval(timer);
   }, [paused]);
 
+  function go(step) {
+    setIndex((i) => (i + step + BANNERS.length) % BANNERS.length);
+  }
+
   return (
     <section
-      className="hero-banners relative w-full overflow-hidden"
+      className={`group relative isolate overflow-hidden rounded-2xl bg-msr-brand ${className}`}
       aria-roledescription="carousel"
       aria-label="Promotional banners"
       onMouseEnter={() => setHover(true)}
@@ -73,6 +78,36 @@ export default function Hero() {
           <img src={banner.src} alt={banner.alt} className="h-full w-full object-cover object-center" />
         </Link>
       ))}
+
+      <button
+        type="button"
+        onClick={() => go(-1)}
+        className="absolute left-3 top-1/2 z-20 hidden h-10 w-10 -translate-y-1/2 place-items-center rounded-full bg-white/85 text-msr-ink opacity-0 shadow-lift backdrop-blur transition hover:bg-white group-hover:opacity-100 md:grid"
+        aria-label="Previous banner"
+      >
+        <ChevronLeft className="h-5 w-5" />
+      </button>
+      <button
+        type="button"
+        onClick={() => go(1)}
+        className="absolute right-3 top-1/2 z-20 hidden h-10 w-10 -translate-y-1/2 place-items-center rounded-full bg-white/85 text-msr-ink opacity-0 shadow-lift backdrop-blur transition hover:bg-white group-hover:opacity-100 md:grid"
+        aria-label="Next banner"
+      >
+        <ChevronRight className="h-5 w-5" />
+      </button>
+
+      <div className="absolute inset-x-0 bottom-3 z-20 flex justify-center gap-1.5">
+        {BANNERS.map((b, i) => (
+          <button
+            key={b.id}
+            type="button"
+            onClick={() => setIndex(i)}
+            className={`h-1.5 rounded-full transition-all ${i === index ? "w-6 bg-white" : "w-1.5 bg-white/55 hover:bg-white/80"}`}
+            aria-label={`Show banner ${i + 1}`}
+            aria-current={i === index}
+          />
+        ))}
+      </div>
     </section>
   );
 }

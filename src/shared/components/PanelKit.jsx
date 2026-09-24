@@ -1,7 +1,7 @@
 import { prettyStatus } from "../auth.js";
 
 export const FIELD =
-  "w-full rounded-xl border border-msr-border bg-white px-3 py-2 text-sm outline-none focus:border-msr-navy";
+  "w-full rounded-lg border border-msr-border bg-white px-2.5 py-1.5 text-[13px] outline-none focus:border-msr-navy";
 
 const TONE = {
   active: "bg-emerald-50 text-msr-success",
@@ -40,10 +40,32 @@ export function StatusBadge({ value }) {
   );
 }
 
+export function PanelTabs({ tabs, value, onChange }) {
+  return (
+    <div className="mt-3 flex gap-1 overflow-x-auto rounded-lg bg-white p-1 shadow-sm">
+      {tabs.map((tab) => {
+        const active = tab.id === value;
+        return (
+          <button
+            key={tab.id}
+            type="button"
+            onClick={() => onChange(tab.id)}
+            className={`shrink-0 rounded-md px-3 py-1.5 text-[13px] font-semibold ${
+              active ? "bg-msr-navy text-white" : "text-msr-muted hover:bg-msr-bg hover:text-msr-navy"
+            }`}
+          >
+            {tab.label}
+          </button>
+        );
+      })}
+    </div>
+  );
+}
+
 export function PanelToolbar({ search, onSearch, searchPlaceholder = "Search", filters = [], onReset, extra }) {
   return (
-    <div className="mt-4 rounded-2xl bg-white p-3 shadow-sm md:p-4">
-      <div className="flex flex-wrap items-end gap-3">
+    <div className="mt-3 rounded-xl bg-white p-2.5 shadow-sm">
+      <div className="flex flex-wrap items-end gap-2">
         {onSearch ? (
           <label className="grid min-w-[200px] flex-1 gap-1 text-xs font-semibold text-msr-muted">
             Search
@@ -68,7 +90,7 @@ export function PanelToolbar({ search, onSearch, searchPlaceholder = "Search", f
           </label>
         ))}
         {onReset ? (
-          <button type="button" onClick={onReset} className="text-sm font-semibold text-msr-purple">
+          <button type="button" onClick={onReset} className="text-[13px] font-semibold text-msr-purple">
             Reset
           </button>
         ) : null}
@@ -78,55 +100,98 @@ export function PanelToolbar({ search, onSearch, searchPlaceholder = "Search", f
   );
 }
 
+function pageWindow(current, pages) {
+  const width = 5;
+  let start = Math.max(1, current - 2);
+  let end = Math.min(pages, start + width - 1);
+  start = Math.max(1, end - width + 1);
+  const list = [];
+  for (let n = start; n <= end; n += 1) list.push(n);
+  return list;
+}
+
 export function PanelPager({ meta, page, onPage }) {
   const total = meta?.total || 0;
-  const pages = meta?.pages || 0;
+  const pages = Math.max(meta?.pages || 0, total ? 1 : 0);
   const limit = meta?.limit || 20;
   const current = meta?.page || page || 1;
-  if (!total && !pages) return null;
-  const from = total ? (current - 1) * limit + 1 : 0;
+  if (!total) return null;
+  const from = (current - 1) * limit + 1;
   const to = Math.min(total, current * limit);
+  const numbers = pageWindow(current, pages);
   return (
-    <div className="mt-4 flex items-center justify-between gap-3">
-      <p className="text-xs text-msr-muted">{total ? `${from}–${to} of ${total}` : "0 results"}</p>
-      {pages > 1 ? (
-        <div className="flex gap-2">
+    <div className="mt-3 flex flex-wrap items-center justify-between gap-2">
+      <p className="text-[12px] text-msr-muted">
+        {from}–{to} of {total}
+      </p>
+      <div className="flex items-center gap-1">
+        <button
+          type="button"
+          disabled={current <= 1}
+          onClick={() => onPage(current - 1)}
+          className="rounded-md border border-msr-border bg-white px-2 py-1 text-[12px] font-semibold disabled:opacity-40"
+        >
+          Prev
+        </button>
+        {numbers[0] > 1 ? (
           <button
             type="button"
-            disabled={current <= 1}
-            onClick={() => onPage(current - 1)}
-            className="rounded-xl border border-msr-border px-3 py-1.5 text-sm font-semibold disabled:opacity-40"
+            onClick={() => onPage(1)}
+            className="min-w-7 rounded-md border border-msr-border bg-white px-2 py-1 text-[12px] font-semibold text-msr-navy"
           >
-            Prev
+            1
           </button>
+        ) : null}
+        {numbers[0] > 2 ? <span className="px-0.5 text-[12px] text-msr-muted">…</span> : null}
+        {numbers.map((n) => (
+          <button
+            key={n}
+            type="button"
+            onClick={() => onPage(n)}
+            className={`min-w-7 rounded-md px-2 py-1 text-[12px] font-semibold ${
+              n === current ? "bg-msr-navy text-white" : "border border-msr-border bg-white text-msr-navy"
+            }`}
+          >
+            {n}
+          </button>
+        ))}
+        {numbers[numbers.length - 1] < pages - 1 ? <span className="px-0.5 text-[12px] text-msr-muted">…</span> : null}
+        {numbers[numbers.length - 1] < pages ? (
           <button
             type="button"
-            disabled={current >= pages}
-            onClick={() => onPage(current + 1)}
-            className="rounded-xl border border-msr-border px-3 py-1.5 text-sm font-semibold disabled:opacity-40"
+            onClick={() => onPage(pages)}
+            className="min-w-7 rounded-md border border-msr-border bg-white px-2 py-1 text-[12px] font-semibold text-msr-navy"
           >
-            Next
+            {pages}
           </button>
-        </div>
-      ) : null}
+        ) : null}
+        <button
+          type="button"
+          disabled={current >= pages}
+          onClick={() => onPage(current + 1)}
+          className="rounded-md border border-msr-border bg-white px-2 py-1 text-[12px] font-semibold disabled:opacity-40"
+        >
+          Next
+        </button>
+      </div>
     </div>
   );
 }
 
 export function PanelModal({ title, onClose, children }) {
   return (
-    <div className="fixed inset-0 z-50 grid place-items-center bg-black/40 p-4" onClick={onClose}>
+    <div className="fixed inset-0 z-50 grid place-items-center bg-black/40 p-3" onClick={onClose}>
       <div
-        className="msr-pane max-h-[90dvh] w-full max-w-lg overflow-y-auto rounded-2xl bg-white p-5 shadow-xl"
+        className="msr-pane max-h-[88dvh] w-full max-w-lg overflow-y-auto rounded-xl bg-white p-4 text-[13px] shadow-xl"
         onClick={(e) => e.stopPropagation()}
       >
         <div className="flex items-start justify-between gap-3">
-          <h2 className="text-lg font-extrabold">{title}</h2>
-          <button type="button" onClick={onClose} className="text-sm text-msr-muted">
+          <h2 className="text-base font-bold">{title}</h2>
+          <button type="button" onClick={onClose} className="text-[12px] text-msr-muted">
             Close
           </button>
         </div>
-        <div className="mt-4">{children}</div>
+        <div className="mt-3 grid gap-2 [&_button[type=submit]]:rounded-lg [&_button[type=submit]]:py-2 [&_button[type=submit]]:text-[13px]">{children}</div>
       </div>
     </div>
   );
@@ -137,8 +202,11 @@ export function ActionBtn({ children, onClick, danger, disabled }) {
     <button
       type="button"
       disabled={disabled}
-      onClick={onClick}
-      className={`text-xs font-bold ${danger ? "text-msr-danger" : "text-msr-purple"} disabled:opacity-40`}
+      onClick={(e) => {
+        e.stopPropagation();
+        onClick?.(e);
+      }}
+      className={`rounded-md px-1.5 py-0.5 text-[12px] font-semibold ${danger ? "text-msr-danger" : "text-msr-purple"} disabled:opacity-40`}
     >
       {children}
     </button>

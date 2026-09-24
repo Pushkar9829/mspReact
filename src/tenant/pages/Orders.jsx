@@ -7,6 +7,7 @@ import { useListQuery } from "../../shared/hooks/useListQuery.js";
 import { PanelState, PanelTable } from "../../shared/components/PanelTable.jsx";
 import { PanelPager, PanelToolbar, StatusBadge } from "../../shared/components/PanelKit.jsx";
 import { ORDER_STATUSES, PAYMENT_STATUSES, NEXT_ORDER_STATUSES, metaOf, rowId, statusOptions } from "../../shared/lib/panel.js";
+import { OrderDetailPanel, trackingForShip } from "../../shared/components/OrderDetail.jsx";
 
 export default function Orders() {
   const { q, setQ, page, setPage, filters, setFilter, reset, query } = useListQuery();
@@ -34,10 +35,12 @@ export default function Orders() {
   }
 
   async function changeStatus(id, status) {
+    const extra = trackingForShip(status);
+    if (extra === null) return;
     setBusy(id);
     setMsg("");
     try {
-      await api.updateOrderStatus(id, status);
+      await api.updateOrderStatus(id, status, extra);
       reload();
       if (openId === id) setDetail(await api.getOrder(id));
     } catch (err) {
@@ -104,6 +107,7 @@ export default function Orders() {
         <PanelTable
           rows={rows}
           rowKey={rowId}
+          selectedKey={openId}
           onRowClick={openOrder}
           columns={[
             { key: "orderNumber", label: "Order", render: (row) => <span className="font-semibold">{row.orderNumber}</span> },
@@ -146,24 +150,7 @@ export default function Orders() {
           ]}
         />
       </PanelState>
-      {detail && openId === rowId(detail) ? (
-        <div className="mt-4 rounded-2xl bg-white p-5 shadow-sm">
-          <h2 className="font-bold">{detail.orderNumber}</h2>
-          <p className="mt-1 text-sm text-msr-muted">
-            {detail.buyerId?.email} · {detail.addressSnapshot?.city || ""} {detail.addressSnapshot?.postalCode || ""}
-          </p>
-          <ul className="mt-3 grid gap-2 text-sm">
-            {(detail.items || []).map((item) => (
-              <li key={item._id || item.sku} className="flex justify-between gap-3 border-b border-msr-border py-2">
-                <span>
-                  {item.name} · {item.sku} × {item.qty}
-                </span>
-                <span className="font-semibold">{inr(item.lineTotal)}</span>
-              </li>
-            ))}
-          </ul>
-        </div>
-      ) : null}
+      {detail && openId === rowId(detail) ? <OrderDetailPanel detail={detail} /> : null}
       <PanelPager meta={metaOf(data)} page={page} onPage={setPage} />
     </div>
   );

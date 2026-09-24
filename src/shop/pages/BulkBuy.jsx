@@ -82,7 +82,7 @@ export default function BulkBuy() {
               className="absolute inset-0 h-full w-full object-cover"
               referrerPolicy="no-referrer"
             />
-            <span className="absolute inset-0 bg-gradient-to-l from-transparent to-[#080a3d]/40" />
+            <span className="absolute inset-0 bg-gradient-to-l from-transparent to-msr-ink/40" />
           </div>
         </div>
       </section>
@@ -93,13 +93,13 @@ export default function BulkBuy() {
             <Link
               key={title}
               to={to}
-              className="group rounded-2xl border border-[#ece6d4] bg-white px-5 py-6 transition hover:-translate-y-1 hover:ring-1 hover:ring-[#ead9a0]"
+              className="group rounded-2xl border border-msr-line bg-white px-5 py-6 transition hover:-translate-y-1 hover:ring-1 hover:ring-msr-line"
             >
-              <span className="grid h-11 w-11 place-items-center rounded-full border border-[#ead9a0] bg-[#fffaf0] text-msr-navy transition-colors group-hover:border-msr-gold group-hover:bg-msr-navy group-hover:text-msr-gold">
+              <span className="grid h-11 w-11 place-items-center rounded-full border border-msr-line bg-msr-surface text-msr-navy transition-colors group-hover:border-msr-gold group-hover:bg-msr-navy group-hover:text-msr-gold">
                 <Icon className="h-5 w-5" strokeWidth={1.6} />
               </span>
               <h2 className="mt-4 text-[16px] font-bold tracking-tight text-msr-navy">{title}</h2>
-              <p className="mt-1.5 text-[13px] leading-relaxed text-[#6b6f7e]">{text}</p>
+              <p className="mt-1.5 text-[13px] leading-relaxed text-msr-muted">{text}</p>
             </Link>
           ))}
         </div>
@@ -114,7 +114,7 @@ export default function BulkBuy() {
             </div>
           </section>
         ) : (
-          <p className="mt-10 rounded-2xl border border-[#ece6d4] bg-white px-6 py-12 text-center text-sm text-msr-muted">
+          <p className="mt-10 rounded-2xl border border-msr-line bg-white px-6 py-12 text-center text-sm text-msr-muted">
             Case packs will show here once the floor is stocked.
           </p>
         )}

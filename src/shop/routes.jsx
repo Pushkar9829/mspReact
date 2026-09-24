@@ -17,6 +17,7 @@ import BulkBuy from "./pages/BulkBuy.jsx";
 import Wishlist from "./pages/Wishlist.jsx";
 import Orders from "./pages/Orders.jsx";
 import Help from "./pages/Help.jsx";
+import Support from "./pages/Support.jsx";
 import Legal from "./pages/Legal.jsx";
 import AccountLayout from "./layouts/AccountLayout.jsx";
 import RequireAuth from "../shared/components/RequireAuth.jsx";
@@ -46,6 +47,7 @@ export function shopRoutes() {
         <Route path="wishlist" element={<Wishlist />} />
         <Route path="coupons" element={<Coupons />} />
         <Route path="help" element={<Help />} />
+        <Route path="support" element={<Support />} />
       </Route>
       <Route path="/deals" element={<Deals />} />
       <Route path="/new" element={<NewLaunches />} />

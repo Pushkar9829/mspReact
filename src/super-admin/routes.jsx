@@ -10,12 +10,14 @@ import Cms from "./pages/Cms.jsx";
 import Analytics from "./pages/Analytics.jsx";
 import Audit from "./pages/Audit.jsx";
 import Settings from "./pages/Settings.jsx";
+import Catalog from "./pages/Catalog.jsx";
 
 export function superAdminRoutes() {
   return (
     <Route path="/super-admin" element={<SuperAdminLayout />}>
       <Route index element={<Overview />} />
       <Route path="tenants" element={<Tenants />} />
+      <Route path="catalog" element={<Catalog />} />
       <Route path="users" element={<Users />} />
       <Route path="roles" element={<Roles />} />
       <Route path="orders" element={<Orders />} />

@@ -5,9 +5,11 @@ import {
   ChevronDown,
   Check,
   MapPin,
+  ShieldCheck,
   ShoppingBag,
   Tag,
   Trash2,
+  Truck,
   ArrowRight,
   Plus,
   X,
@@ -18,7 +20,9 @@ import { useAuth } from "../../shared/context/AuthContext.jsx";
 import { getProduct } from "../data/catalog.js";
 import { api } from "../../shared/api.js";
 import { inr } from "../../shared/lib/format.js";
-import { QtyStepper } from "../components/shopUi.jsx";
+import { Button, EmptyState, QtyStepper, buttonClass, inputClass } from "../components/shopUi.jsx";
+
+const FREE_DELIVERY_AT = 999;
 
 const EMPTY_DRAFT = {
   label: "Shop",
@@ -35,6 +39,7 @@ export default function Cart() {
     items,
     setQty,
     remove,
+    mrp,
     subtotal,
     discount,
     delivery,
@@ -46,6 +51,7 @@ export default function Cart() {
     applyCoupon,
     error,
     live,
+    refresh,
   } = useCart();
 
   const { user } = useAuth();
@@ -274,6 +280,7 @@ export default function Cart() {
   ------------------------------------------------------- */
 
   function goCheckout() {
+    if (!live) return;
     if (!user) {
       navigate("/login", {
         state: {
@@ -291,49 +298,23 @@ export default function Cart() {
     });
   }
 
-  /* -------------------------------------------------------
-     EMPTY CART
-  ------------------------------------------------------- */
-
   if (!items.length) {
     return (
-      <div className="min-h-[70vh] bg-[#f7f8fa]">
-        <div className="msr-gutter flex min-h-[70vh] items-center justify-center py-16">
-          <div className="w-full max-w-md text-center">
-            <div className="mx-auto grid h-20 w-20 place-items-center rounded-full bg-white shadow-sm">
-              <ShoppingBag className="h-9 w-9 text-[#c6cad8]" />
-            </div>
-
-            <h1 className="mt-6 text-2xl font-extrabold tracking-tight text-[#171a38]">
-              Your cart is empty
-            </h1>
-
-            <p className="mx-auto mt-2 max-w-sm text-sm leading-6 text-[#777c90]">
-              Your everyday essentials are waiting.
-              Explore groceries, snacks, household items and
-              more.
-            </p>
-
-            <Link
-              to="/category/all"
-              className="
-                mt-7 inline-flex items-center gap-2
-                rounded-xl
-                bg-[#0b1460]
-                px-6 py-3
-                text-sm font-bold
-                text-white
-                shadow-[0_5px_15px_rgba(11,20,96,0.18)]
-                transition
-                hover:-translate-y-0.5
-                hover:bg-[#111b78]
-              "
-            >
-              Continue shopping
-              <ArrowRight className="h-4 w-4" />
-            </Link>
-          </div>
-        </div>
+      <div className="msr-gutter py-12 md:py-16">
+        <EmptyState
+          icon={ShoppingBag}
+          title="Your cart is empty"
+          text="Your everyday essentials are waiting. Explore groceries, snacks, household items and more."
+          className="mx-auto max-w-xl"
+        >
+          <Link to="/category/all" className={buttonClass({ size: "lg" })}>
+            Start shopping
+            <ArrowRight className="h-4 w-4" />
+          </Link>
+          <Link to="/deals" className={buttonClass({ variant: "secondary", size: "lg" })}>
+            View deals
+          </Link>
+        </EmptyState>
       </div>
     );
   }
@@ -342,879 +323,426 @@ export default function Cart() {
     couponCode && discount
       ? `${couponCode === bestCoupon?.code ? "Best coupon · " : ""}${couponCode} applied · you save ${inr(discount)}`
       : "";
+  const productSavings = Math.max(0, mrp - subtotal);
+  const totalSavings = productSavings + (discount || 0);
+  const freeLeft = !live && delivery > 0 && subtotal < FREE_DELIVERY_AT ? FREE_DELIVERY_AT - subtotal : 0;
+  const unitCount = items.reduce((n, i) => n + i.qty, 0);
 
   return (
-    <div className="min-h-screen bg-[#f7f8fa]">
-      <div className="msr-gutter py-6 sm:py-8 lg:py-10">
-
-        {/* ==================================================
-            HEADER
-        ================================================== */}
-
-        <div className="mb-7 flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
-          <div>
-            <p className="text-[11px] font-bold uppercase tracking-[0.16em] text-[#9296a7]">
-              Shopping bag
-            </p>
-
-            <h1 className="mt-1 text-2xl font-extrabold tracking-tight text-[#171a38] sm:text-3xl">
-              Your cart
-            </h1>
-
-            <p className="mt-1 text-sm text-[#777c90]">
-              {items.length}{" "}
-              {items.length === 1 ? "item" : "items"} in your
-              shopping bag
-            </p>
-          </div>
-
-          <Link
-            to="/category/all"
-            className="
-              inline-flex items-center gap-1.5
-              text-sm font-bold
-              text-[#0b1460]
-              transition
-              hover:text-msr-accent
-            "
-          >
-            Continue shopping
-            <ArrowRight className="h-4 w-4" />
-          </Link>
+    <div className="msr-gutter py-6 md:py-8">
+      <div className="mb-5 flex flex-wrap items-end justify-between gap-3">
+        <div>
+          <h1 className="text-2xl font-extrabold tracking-tight text-msr-ink">Shopping cart</h1>
+          <p className="mt-1 text-sm text-msr-muted">
+            {items.length} {items.length === 1 ? "product" : "products"} · {unitCount} {unitCount === 1 ? "unit" : "units"}
+          </p>
         </div>
+        <Link to="/category/all" className="inline-flex items-center gap-1.5 text-[13px] font-semibold text-msr-primary hover:underline">
+          Continue shopping
+          <ArrowRight className="h-4 w-4" />
+        </Link>
+      </div>
 
-        {error && !live ? (
-          <div className="mb-5 rounded-xl border border-red-100 bg-red-50 px-4 py-3 text-sm text-msr-danger">
-            {error}
-          </div>
-        ) : null}
+      {error && !live ? (
+        <div className="mb-4 flex flex-wrap items-center justify-between gap-3 rounded-xl border border-msr-danger/20 bg-msr-danger-soft px-4 py-3 text-sm text-msr-danger">
+          <span>{error}</span>
+          <button type="button" onClick={() => refresh()} className="font-bold text-msr-ink hover:underline">
+            Retry
+          </button>
+        </div>
+      ) : null}
 
-        {/* ==================================================
-            MAIN LAYOUT
-        ================================================== */}
-
-        <div className="grid items-start gap-6 xl:grid-cols-[minmax(0,1fr)_390px]">
-
-          {/* ==================================================
-              LEFT — CART
-          ================================================== */}
-
-          <section className="min-w-0">
-
-            <div className="overflow-hidden rounded-2xl border border-[#e9eaf0] bg-white">
-
-              {/* Cart heading */}
-
-              <div className="flex items-center justify-between border-b border-[#eef0f4] px-4 py-4 sm:px-5">
-                <div>
-                  <h2 className="text-[15px] font-extrabold text-[#171a38]">
-                    Cart items
-                  </h2>
-
-                  <p className="mt-0.5 text-xs text-[#9296a7]">
-                    Review your items before checkout
-                  </p>
-                </div>
-
-                <span className="rounded-full bg-[#f3f4f8] px-2.5 py-1 text-[11px] font-bold text-[#686d82]">
-                  {items.length}
-                </span>
+      <div className="grid items-start gap-5 lg:grid-cols-[minmax(0,1fr)_380px]">
+        <section className="min-w-0 space-y-4">
+          {freeLeft > 0 ? (
+            <div className="rounded-2xl border border-msr-line bg-white px-4 py-3.5">
+              <p className="flex items-center gap-2 text-[13px] text-msr-ink">
+                <Truck className="h-4 w-4 text-msr-primary" />
+                Add <span className="font-bold">{inr(freeLeft)}</span> more for <span className="font-bold text-msr-success">FREE delivery</span>
+              </p>
+              <div className="mt-2.5 h-1.5 overflow-hidden rounded-full bg-msr-surface">
+                <div className="h-full rounded-full bg-msr-primary transition-all" style={{ width: `${Math.min(100, (subtotal / FREE_DELIVERY_AT) * 100)}%` }} />
               </div>
+            </div>
+          ) : delivery === 0 ? (
+            <div className="flex items-center gap-2 rounded-2xl border border-msr-success/20 bg-msr-success-soft px-4 py-3 text-[13px] font-semibold text-msr-success-ink">
+              <Check className="h-4 w-4" />
+              Yay! Your order qualifies for FREE delivery
+            </div>
+          ) : null}
 
-              {/* Products */}
+          <div className="overflow-hidden rounded-2xl border border-msr-line bg-white">
+            <ul className="divide-y divide-msr-line">
+              {items.map((item) => {
+                const product = getProduct(item.id);
+                const lineMrp = (item.mrp || item.price) * item.qty;
+                const lineTotal = item.lineTotal || item.price * item.qty;
+                const lineOff = item.mrp && item.mrp > item.price ? Math.round(((item.mrp - item.price) / item.mrp) * 100) : 0;
+                return (
+                  <li key={(item.cartItemId || item.id) + item.pack} className="group p-4 sm:p-5">
+                    <div className="flex gap-4">
+                      <Link
+                        to={`/product/${item.id}`}
+                        className="grid h-24 w-24 shrink-0 place-items-center overflow-hidden rounded-xl bg-msr-surface sm:h-28 sm:w-28"
+                      >
+                        <img
+                          src={item.image || product?.image || "/products/product.png"}
+                          alt={item.name}
+                          className="h-full w-full object-contain p-2 mix-blend-multiply transition-transform duration-300 group-hover:scale-105"
+                          onError={(e) => {
+                            e.currentTarget.src = "/products/product.png";
+                          }}
+                        />
+                      </Link>
 
-              <ul className="divide-y divide-[#eef0f4]">
-                {items.map((item) => {
-                  const product = getProduct(item.id);
-
-                  return (
-                    <li
-                      key={
-                        (item.cartItemId || item.id) +
-                        item.pack
-                      }
-                      className="group p-4 sm:p-5"
-                    >
-                      <div className="flex gap-3.5 sm:gap-5">
-
-                        {/* Image */}
-
-                        <Link
-                          to={`/product/${item.id}`}
-                          className="
-                            relative
-                            grid h-[92px] w-[92px]
-                            shrink-0 place-items-center
-                            overflow-hidden
-                            rounded-xl
-                            bg-[#f7f8fa]
-                            sm:h-[112px] sm:w-[112px]
-                          "
-                        >
-                          <img
-                            src={
-                              item.image ||
-                              product?.image ||
-                              "/products/product.png"
-                            }
-                            alt={item.name}
-                            className="
-                              h-full w-full
-                              object-contain
-                              p-2
-                              transition-transform
-                              duration-300
-                              group-hover:scale-105
-                            "
-                            onError={(e) => {
-                              e.currentTarget.src =
-                                "/products/product.png";
-                            }}
-                          />
-                        </Link>
-
-                        {/* Details */}
-
-                        <div className="flex min-w-0 flex-1 flex-col">
-
-                          <div className="flex items-start justify-between gap-3">
-
-                            <div className="min-w-0">
-
-                              <Link
-                                to={`/product/${item.id}`}
-                                className="
-                                  line-clamp-2
-                                  text-[14px]
-                                  font-bold
-                                  leading-5
-                                  text-[#171a38]
-                                  transition-colors
-                                  hover:text-msr-accent
-                                  sm:text-[15px]
-                                "
-                              >
-                                {item.name}
-                              </Link>
-
-                              <div className="mt-1.5 flex flex-wrap items-center gap-x-2 gap-y-1">
-                                <span className="text-[12px] font-medium text-[#777c90]">
+                      <div className="flex min-w-0 flex-1 flex-col">
+                        <div className="flex items-start justify-between gap-3">
+                          <div className="min-w-0">
+                            {product?.brand ? (
+                              <p className="text-[11px] font-semibold uppercase tracking-wide text-msr-subtle">{product.brand}</p>
+                            ) : null}
+                            <Link
+                              to={`/product/${item.id}`}
+                              className="line-clamp-2 text-[14px] font-semibold leading-snug text-msr-ink hover:text-msr-primary sm:text-[15px]"
+                            >
+                              {item.name}
+                            </Link>
+                            <div className="mt-1.5 flex flex-wrap items-center gap-1.5">
+                              {item.pack ? (
+                                <span className="rounded-md border border-msr-line bg-msr-surface px-1.5 py-0.5 text-[11px] font-medium text-msr-muted">
                                   {item.pack}
                                 </span>
-
-                                {product?.brand ? (
-                                  <>
-                                    <span className="text-[#d3d5dc]">
-                                      •
-                                    </span>
-
-                                    <span className="text-[12px] text-[#777c90]">
-                                      {product.brand}
-                                    </span>
-                                  </>
-                                ) : null}
-                              </div>
-
-                            </div>
-
-                            {/* Remove */}
-
-                            <button
-                              type="button"
-                              onClick={() =>
-                                remove(
-                                  item.id,
-                                  item.pack
-                                )
-                              }
-                              className="
-                                grid h-8 w-8
-                                shrink-0
-                                place-items-center
-                                rounded-lg
-                                text-[#a0a4b2]
-                                transition
-                                hover:bg-red-50
-                                hover:text-msr-danger
-                              "
-                              aria-label={`Remove ${item.name}`}
-                            >
-                              <Trash2 className="h-4 w-4" />
-                            </button>
-
-                          </div>
-
-                          {/* Bottom */}
-
-                          <div className="mt-auto flex items-end justify-between gap-3 pt-4">
-
-                            {/* Price */}
-
-                            <div>
-                              <p className="text-[15px] font-extrabold text-[#171a38] sm:text-[16px]">
-                                {inr(
-                                  item.lineTotal ||
-                                    item.price * item.qty
-                                )}
-                              </p>
-
-                              {item.qty > 1 ? (
-                                <p className="mt-0.5 text-[10px] text-[#9296a7]">
-                                  {inr(item.price)} each
-                                </p>
+                              ) : null}
+                              {item.fulfillmentMode === "store_pickup" ? (
+                                <span className="rounded-md bg-msr-primary-soft px-1.5 py-0.5 text-[11px] font-semibold text-msr-primary-ink">
+                                  Store pickup
+                                </span>
+                              ) : null}
+                              {item.easyReturn ? (
+                                <span className="rounded-md bg-msr-success-soft px-1.5 py-0.5 text-[11px] font-semibold text-msr-success-ink">
+                                  Easy return
+                                </span>
                               ) : null}
                             </div>
-
-                            {/* Quantity */}
-
-                            <QtyStepper
-                              value={item.qty}
-                              onChange={(q) =>
-                                setQty(
-                                  item.id,
-                                  item.pack,
-                                  q
-                                )
-                              }
-                              size="sm"
-                            />
-
                           </div>
-
-                        </div>
-                      </div>
-                    </li>
-                  );
-                })}
-              </ul>
-
-              {/* Continue shopping */}
-
-              <div className="border-t border-[#eef0f4] bg-[#fafbfc] px-4 py-3 sm:px-5">
-                <Link
-                  to="/category/all"
-                  className="inline-flex items-center gap-1.5 text-xs font-bold text-[#0b1460]"
-                >
-                  <Plus className="h-3.5 w-3.5" />
-                  Add more items
-                </Link>
-              </div>
-
-            </div>
-
-          </section>
-
-          {/* ==================================================
-              RIGHT — CHECKOUT
-          ================================================== */}
-
-          <aside className="min-w-0 xl:sticky xl:top-24">
-
-            <div className="space-y-4">
-
-              {/* ==================================================
-                  DELIVERY
-              ================================================== */}
-
-              {user ? (
-                <div className="overflow-hidden rounded-2xl border border-[#e9eaf0] bg-white">
-
-                  <div className="border-b border-[#eef0f4] px-4 py-4">
-                    <div className="flex items-center gap-2.5">
-                      <div className="grid h-8 w-8 place-items-center rounded-lg bg-[#f0f2ff]">
-                        <MapPin className="h-4 w-4 text-[#0b1460]" />
-                      </div>
-
-                      <div>
-                        <h2 className="text-[14px] font-extrabold text-[#171a38]">
-                          Delivery address
-                        </h2>
-
-                        <p className="text-[11px] text-[#9296a7]">
-                          Where should we deliver?
-                        </p>
-                      </div>
-                    </div>
-                  </div>
-
-                  <div className="p-4">
-
-                    {addresses.length ? (
-                      <label className="relative block">
-                        <select
-                          value={addressId}
-                          onChange={(e) =>
-                            setAddressId(e.target.value)
-                          }
-                          className="
-                            h-12
-                            w-full
-                            appearance-none
-                            rounded-xl
-                            border
-                            border-[#e4e6ec]
-                            bg-white
-                            px-3
-                            pr-10
-                            text-sm
-                            font-semibold
-                            text-[#252942]
-                            outline-none
-                            transition
-                            focus:border-[#0b1460]
-                            focus:ring-2
-                            focus:ring-[#0b1460]/10
-                          "
-                        >
-                          {addresses.map((address) => (
-                            <option
-                              key={address._id}
-                              value={address._id}
-                            >
-                              {address.label} ·{" "}
-                              {address.city}{" "}
-                              {address.postalCode}
-                            </option>
-                          ))}
-                        </select>
-
-                        <ChevronDown className="pointer-events-none absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 text-[#85899b]" />
-                      </label>
-                    ) : (
-                      <div className="rounded-xl border border-dashed border-[#dfe1e8] bg-[#fafbfc] px-4 py-4 text-center">
-                        <MapPin className="mx-auto h-5 w-5 text-[#a4a8b6]" />
-
-                        <p className="mt-2 text-xs font-semibold text-[#686d82]">
-                          No saved address
-                        </p>
-                      </div>
-                    )}
-
-                    {selectedAddress ? (
-                      <div className="mt-3 rounded-xl bg-[#f8f9fb] px-3.5 py-3">
-                        <div className="flex items-start gap-2">
-                          <Check className="mt-0.5 h-3.5 w-3.5 shrink-0 text-msr-success" />
-
-                          <p className="text-[12px] leading-5 text-[#686d82]">
-                            <span className="font-bold text-[#303449]">
-                              {selectedAddress.contactName}
-                            </span>
-                            <br />
-                            {selectedAddress.addressLine1},{" "}
-                            {selectedAddress.city}{" "}
-                            {selectedAddress.postalCode}
-                          </p>
-                        </div>
-                      </div>
-                    ) : null}
-
-                    {!addingAddress ? (
-                      <button
-                        type="button"
-                        onClick={() => setAddingAddress(true)}
-                        className="
-                          mt-3
-                          inline-flex
-                          items-center
-                          gap-1
-                          text-xs
-                          font-bold
-                          text-[#0b1460]
-                        "
-                      >
-                        <Plus className="h-3.5 w-3.5" />
-                        Add new address
-                      </button>
-                    ) : (
-                      <form
-                        onSubmit={saveAddress}
-                        className="mt-3 space-y-2.5 rounded-xl border border-[#e9eaf0] bg-[#fafbfc] p-3"
-                      >
-                        <input
-                          className="h-10 w-full rounded-lg border border-[#e4e6ec] bg-white px-3 text-sm outline-none focus:border-[#0b1460]"
-                          placeholder="Full name"
-                          required
-                          value={draft.contactName}
-                          onChange={(e) =>
-                            setDraft((d) => ({
-                              ...d,
-                              contactName:
-                                e.target.value,
-                            }))
-                          }
-                        />
-
-                        <input
-                          className="h-10 w-full rounded-lg border border-[#e4e6ec] bg-white px-3 text-sm outline-none focus:border-[#0b1460]"
-                          placeholder="Phone"
-                          required
-                          value={draft.phone}
-                          onChange={(e) =>
-                            setDraft((d) => ({
-                              ...d,
-                              phone: e.target.value,
-                            }))
-                          }
-                        />
-
-                        <input
-                          className="h-10 w-full rounded-lg border border-[#e4e6ec] bg-white px-3 text-sm outline-none focus:border-[#0b1460]"
-                          placeholder="Street address"
-                          required
-                          value={draft.addressLine1}
-                          onChange={(e) =>
-                            setDraft((d) => ({
-                              ...d,
-                              addressLine1:
-                                e.target.value,
-                            }))
-                          }
-                        />
-
-                        <div className="grid grid-cols-3 gap-2">
-                          <input
-                            className="h-10 min-w-0 rounded-lg border border-[#e4e6ec] bg-white px-2 text-sm outline-none focus:border-[#0b1460]"
-                            placeholder="City"
-                            required
-                            value={draft.city}
-                            onChange={(e) =>
-                              setDraft((d) => ({
-                                ...d,
-                                city: e.target.value,
-                              }))
-                            }
-                          />
-
-                          <input
-                            className="h-10 min-w-0 rounded-lg border border-[#e4e6ec] bg-white px-2 text-sm outline-none focus:border-[#0b1460]"
-                            placeholder="State"
-                            required
-                            value={draft.state}
-                            onChange={(e) =>
-                              setDraft((d) => ({
-                                ...d,
-                                state: e.target.value,
-                              }))
-                            }
-                          />
-
-                          <input
-                            className="h-10 min-w-0 rounded-lg border border-[#e4e6ec] bg-white px-2 text-sm outline-none focus:border-[#0b1460]"
-                            placeholder="PIN"
-                            required
-                            value={draft.postalCode}
-                            onChange={(e) =>
-                              setDraft((d) => ({
-                                ...d,
-                                postalCode:
-                                  e.target.value,
-                              }))
-                            }
-                          />
-                        </div>
-
-                        {addrError ? (
-                          <p className="text-xs text-msr-danger">
-                            {addrError}
-                          </p>
-                        ) : null}
-
-                        <div className="flex gap-2 pt-1">
-                          <button
-                            type="submit"
-                            className="
-                              flex-1
-                              rounded-lg
-                              bg-[#0b1460]
-                              py-2.5
-                              text-xs
-                              font-bold
-                              text-white
-                            "
-                          >
-                            Save address
-                          </button>
-
                           <button
                             type="button"
-                            onClick={() =>
-                              setAddingAddress(false)
-                            }
-                            className="
-                              grid w-10
-                              place-items-center
-                              rounded-lg
-                              border
-                              border-[#e4e6ec]
-                              bg-white
-                            "
-                            aria-label="Cancel"
+                            onClick={() => remove(item.id, item.pack)}
+                            className="grid h-8 w-8 shrink-0 place-items-center rounded-lg text-msr-subtle transition hover:bg-msr-danger-soft hover:text-msr-danger"
+                            aria-label={`Remove ${item.name}`}
                           >
-                            <X className="h-4 w-4" />
+                            <Trash2 className="h-4 w-4" />
                           </button>
                         </div>
-                      </form>
-                    )}
 
-                  </div>
-                </div>
+                        <div className="mt-auto flex flex-wrap items-end justify-between gap-3 pt-3">
+                          <QtyStepper value={item.qty} onChange={(q) => setQty(item.id, item.pack, q)} size="sm" />
+                          <div className="text-right">
+                            <p className="flex items-baseline justify-end gap-2">
+                              {lineOff ? <span className="text-[12px] text-msr-subtle line-through">{inr(lineMrp)}</span> : null}
+                              <span className="text-[16px] font-extrabold text-msr-ink">{inr(lineTotal)}</span>
+                            </p>
+                            <p className="mt-0.5 text-[11px] text-msr-subtle">
+                              {inr(item.price)} each
+                              {lineOff ? <span className="ml-1.5 font-semibold text-msr-success">{lineOff}% off</span> : null}
+                            </p>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  </li>
+                );
+              })}
+            </ul>
+            <div className="border-t border-msr-line bg-msr-surface/60 px-4 py-3 sm:px-5">
+              <Link to="/category/all" className="inline-flex items-center gap-1.5 text-[13px] font-semibold text-msr-primary hover:underline">
+                <Plus className="h-4 w-4" />
+                Add more items
+              </Link>
+            </div>
+          </div>
+        </section>
+
+        <aside className="min-w-0 space-y-4 lg:sticky lg:top-32">
+          {user ? (
+            <Panel icon={MapPin} title="Deliver to">
+              {addresses.length ? (
+                <label className="relative block">
+                  <select
+                    value={addressId}
+                    onChange={(e) => setAddressId(e.target.value)}
+                    className={`${inputClass} cursor-pointer appearance-none pr-10 font-semibold`}
+                  >
+                    {addresses.map((address) => (
+                      <option key={address._id} value={address._id}>
+                        {address.label} · {address.city} {address.postalCode}
+                      </option>
+                    ))}
+                  </select>
+                  <ChevronDown className="pointer-events-none absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 text-msr-subtle" />
+                </label>
               ) : (
-                <div className="rounded-2xl border border-[#e9eaf0] bg-white p-4">
-                  <div className="flex gap-3">
-                    <div className="grid h-9 w-9 shrink-0 place-items-center rounded-lg bg-[#f0f2ff]">
-                      <ShoppingBag className="h-4 w-4 text-[#0b1460]" />
-                    </div>
-
-                    <div>
-                      <p className="text-sm font-bold text-[#171a38]">
-                        Sign in to continue
-                      </p>
-
-                      <p className="mt-1 text-xs leading-5 text-[#777c90]">
-                        Save your address, apply coupons and
-                        complete your order.
-                      </p>
-                    </div>
-                  </div>
-                </div>
+                <p className="rounded-xl border border-dashed border-msr-line-strong bg-msr-surface px-4 py-3 text-center text-[12.5px] text-msr-muted">
+                  No saved address yet
+                </p>
               )}
 
-              {/* ==================================================
-                  COUPONS
-              ================================================== */}
+              {selectedAddress ? (
+                <p className="mt-3 text-[12.5px] leading-5 text-msr-muted">
+                  <span className="font-semibold text-msr-ink">{selectedAddress.contactName}</span>
+                  <br />
+                  {selectedAddress.addressLine1}, {selectedAddress.city} {selectedAddress.postalCode}
+                </p>
+              ) : null}
 
-              {user ? (
-                <div className="overflow-hidden rounded-2xl border border-[#e9eaf0] bg-white">
-
-                  <div className="flex items-center justify-between border-b border-[#eef0f4] px-4 py-4">
-                    <div className="flex items-center gap-2.5">
-                      <div className="grid h-8 w-8 place-items-center rounded-lg bg-[#fff6e5]">
-                        <Tag className="h-4 w-4 text-[#a56a00]" />
-                      </div>
-
-                      <div>
-                        <h2 className="text-[14px] font-extrabold text-[#171a38]">
-                          Offers & coupons
-                        </h2>
-
-                        <p className="text-[11px] text-[#9296a7]">
-                          Save more on your order
-                        </p>
-                      </div>
-                    </div>
-
-                    {coupons.length ? (
-                      <button
-                        type="button"
-                        onClick={() =>
-                          setShowAllCoupons(
-                            (value) => !value
-                          )
-                        }
-                        className="text-[11px] font-bold text-[#0b1460]"
-                      >
-                        {showAllCoupons
-                          ? "Hide"
-                          : `${coupons.length} offers`}
-                      </button>
-                    ) : null}
+              {!addingAddress ? (
+                <button
+                  type="button"
+                  onClick={() => setAddingAddress(true)}
+                  className="mt-3 inline-flex items-center gap-1 text-[12.5px] font-semibold text-msr-primary hover:underline"
+                >
+                  <Plus className="h-3.5 w-3.5" />
+                  Add new address
+                </button>
+              ) : (
+                <form onSubmit={saveAddress} className="mt-3 space-y-2 rounded-xl border border-msr-line bg-msr-surface p-3">
+                  <input
+                    className={SMALL_INPUT}
+                    placeholder="Full name"
+                    required
+                    value={draft.contactName}
+                    onChange={(e) => setDraft((d) => ({ ...d, contactName: e.target.value }))}
+                  />
+                  <input
+                    className={SMALL_INPUT}
+                    placeholder="Phone"
+                    required
+                    value={draft.phone}
+                    onChange={(e) => setDraft((d) => ({ ...d, phone: e.target.value }))}
+                  />
+                  <input
+                    className={SMALL_INPUT}
+                    placeholder="Street address"
+                    required
+                    value={draft.addressLine1}
+                    onChange={(e) => setDraft((d) => ({ ...d, addressLine1: e.target.value }))}
+                  />
+                  <div className="grid grid-cols-3 gap-2">
+                    <input
+                      className={SMALL_INPUT}
+                      placeholder="City"
+                      required
+                      value={draft.city}
+                      onChange={(e) => setDraft((d) => ({ ...d, city: e.target.value }))}
+                    />
+                    <input
+                      className={SMALL_INPUT}
+                      placeholder="State"
+                      required
+                      value={draft.state}
+                      onChange={(e) => setDraft((d) => ({ ...d, state: e.target.value }))}
+                    />
+                    <input
+                      className={SMALL_INPUT}
+                      placeholder="PIN"
+                      required
+                      value={draft.postalCode}
+                      onChange={(e) => setDraft((d) => ({ ...d, postalCode: e.target.value }))}
+                    />
                   </div>
-
-                  <div className="p-4">
-
-                    {appliedNote ? (
-                      <div className="mb-3 flex items-center gap-2 rounded-lg bg-[#eef8e8] px-3 py-2.5">
-                        <Check className="h-4 w-4 shrink-0 text-msr-success" />
-
-                        <p className="text-[11px] font-semibold text-[#47720f]">
-                          {appliedNote}
-                        </p>
-                      </div>
-                    ) : null}
-
-                    <form
-                      onSubmit={onCoupon}
-                      className="flex overflow-hidden rounded-xl border border-[#dfe2e9] focus-within:border-[#0b1460] focus-within:ring-2 focus-within:ring-[#0b1460]/10"
-                    >
-                      <div className="relative min-w-0 flex-1">
-                        <Tag className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-[#a0a4b2]" />
-
-                        <input
-                          value={code}
-                          onChange={(e) =>
-                            setCode(e.target.value)
-                          }
-                          placeholder="Enter coupon code"
-                          className="
-                            h-11
-                            w-full
-                            bg-white
-                            px-9
-                            text-sm
-                            font-semibold
-                            uppercase
-                            outline-none
-                            placeholder:normal-case
-                            placeholder:font-normal
-                            placeholder:text-[#a0a4b2]
-                          "
-                        />
-                      </div>
-
-                      <button
-                        type="submit"
-                        className="
-                          bg-[#f5f6f9]
-                          px-4
-                          text-xs
-                          font-extrabold
-                          text-[#0b1460]
-                          transition
-                          hover:bg-[#0b1460]
-                          hover:text-white
-                        "
-                      >
-                        Apply
-                      </button>
-                    </form>
-
-                    {couponMsg &&
-                    couponMsg !== appliedNote ? (
-                      <p className="mt-2 text-[11px] font-medium text-[#777c90]">
-                        {couponMsg}
-                      </p>
-                    ) : null}
-
-                    {showAllCoupons ? (
-                      <ul className="mt-3 space-y-2">
-                        {coupons.length ? (
-                          coupons.map((row) => {
-                            const active =
-                              couponCode === row.code &&
-                              discount > 0;
-
-                            return (
-                              <li
-                                key={row.code}
-                                className={`
-                                  rounded-xl
-                                  border
-                                  px-3 py-3
-                                  ${
-                                    active
-                                      ? "border-[#0b1460] bg-[#f6f7ff]"
-                                      : "border-[#eceef3]"
-                                  }
-                                `}
-                              >
-                                <div className="flex items-start justify-between gap-3">
-                                  <div className="min-w-0">
-                                    <div className="flex items-center gap-2">
-                                      <p className="text-xs font-extrabold text-[#171a38]">
-                                        {row.code}
-                                      </p>
-
-                                      {row.best ? (
-                                        <span className="rounded-full bg-[#eef8e8] px-1.5 py-0.5 text-[8px] font-extrabold uppercase text-[#47720f]">
-                                          Best
-                                        </span>
-                                      ) : null}
-                                    </div>
-
-                                    <p className="mt-0.5 text-[11px] text-[#777c90]">
-                                      {row.name}
-                                    </p>
-
-                                    {row.eligible ? (
-                                      <p className="mt-1 text-[11px] font-semibold text-msr-success">
-                                        Save {inr(row.savings)}
-                                      </p>
-                                    ) : (
-                                      <p className="mt-1 text-[11px] text-[#9a9eac]">
-                                        {row.reason}
-                                      </p>
-                                    )}
-                                  </div>
-
-                                  {row.eligible ? (
-                                    <button
-                                      type="button"
-                                      onClick={() =>
-                                        pickCoupon(row)
-                                      }
-                                      className="shrink-0 text-[10px] font-extrabold text-[#0b1460]"
-                                    >
-                                      {active
-                                        ? "Applied"
-                                        : "Apply"}
-                                    </button>
-                                  ) : null}
-                                </div>
-                              </li>
-                            );
-                          })
-                        ) : (
-                          <li className="py-2 text-center text-xs text-[#9296a7]">
-                            No coupons available for this order.
-                          </li>
-                        )}
-                      </ul>
-                    ) : null}
-
+                  {addrError ? <p className="text-xs text-msr-danger">{addrError}</p> : null}
+                  <div className="flex gap-2 pt-1">
+                    <Button type="submit" size="sm" className="flex-1">
+                      Save address
+                    </Button>
+                    <Button variant="secondary" size="sm" onClick={() => setAddingAddress(false)} aria-label="Cancel">
+                      <X className="h-4 w-4" />
+                    </Button>
                   </div>
+                </form>
+              )}
+            </Panel>
+          ) : (
+            <div className="flex gap-3 rounded-2xl border border-msr-line bg-white p-4">
+              <span className="grid h-9 w-9 shrink-0 place-items-center rounded-xl bg-msr-primary-soft text-msr-primary">
+                <ShoppingBag className="h-4 w-4" />
+              </span>
+              <span>
+                <span className="block text-sm font-bold text-msr-ink">Sign in to continue</span>
+                <span className="mt-0.5 block text-[12.5px] leading-5 text-msr-muted">Save addresses, apply coupons and complete your order.</span>
+              </span>
+            </div>
+          )}
+
+          {user ? (
+            <Panel
+              icon={Tag}
+              iconTone="success"
+              title="Offers & coupons"
+              action={
+                coupons.length ? (
+                  <button
+                    type="button"
+                    onClick={() => setShowAllCoupons((value) => !value)}
+                    className="text-[12px] font-semibold text-msr-primary hover:underline"
+                  >
+                    {showAllCoupons ? "Hide" : `View ${coupons.length} offers`}
+                  </button>
+                ) : null
+              }
+            >
+              {appliedNote ? (
+                <div className="mb-3 flex items-center gap-2 rounded-lg bg-msr-success-soft px-3 py-2.5">
+                  <Check className="h-4 w-4 shrink-0 text-msr-success" />
+                  <p className="text-[12px] font-semibold text-msr-success-ink">{appliedNote}</p>
                 </div>
               ) : null}
 
-              {/* ==================================================
-                  BILL SUMMARY
-              ================================================== */}
+              <form
+                onSubmit={onCoupon}
+                className="flex overflow-hidden rounded-xl border border-msr-line-strong focus-within:border-msr-primary focus-within:ring-4 focus-within:ring-msr-primary/10"
+              >
+                <input
+                  value={code}
+                  onChange={(e) => setCode(e.target.value)}
+                  placeholder="Enter coupon code"
+                  className="h-11 min-w-0 flex-1 bg-white px-3.5 text-sm font-semibold uppercase outline-none placeholder:font-normal placeholder:normal-case placeholder:text-msr-subtle"
+                />
+                <button type="submit" className="px-4 text-[13px] font-bold text-msr-primary transition hover:bg-msr-primary-soft">
+                  Apply
+                </button>
+              </form>
 
-              <div className="overflow-hidden rounded-2xl border border-[#e9eaf0] bg-white">
+              {couponMsg && couponMsg !== appliedNote ? <p className="mt-2 text-[12px] text-msr-muted">{couponMsg}</p> : null}
 
-                <div className="px-4 py-4">
-                  <h2 className="text-[15px] font-extrabold text-[#171a38]">
-                    Bill summary
-                  </h2>
+              {showAllCoupons ? (
+                <ul className="mt-3 space-y-2">
+                  {coupons.length ? (
+                    coupons.map((row) => {
+                      const active = couponCode === row.code && discount > 0;
+                      return (
+                        <li
+                          key={row.code}
+                          className={`rounded-xl border border-dashed px-3 py-3 ${
+                            active ? "border-msr-success bg-msr-success-soft/60" : "border-msr-line-strong"
+                          }`}
+                        >
+                          <div className="flex items-start justify-between gap-3">
+                            <div className="min-w-0">
+                              <div className="flex items-center gap-2">
+                                <p className="font-mono text-[12.5px] font-bold text-msr-ink">{row.code}</p>
+                                {row.best ? (
+                                  <span className="rounded bg-msr-success px-1.5 py-0.5 text-[9px] font-bold uppercase text-white">Best</span>
+                                ) : null}
+                              </div>
+                              <p className="mt-0.5 text-[12px] text-msr-muted">{row.name}</p>
+                              {row.eligible ? (
+                                <p className="mt-1 text-[12px] font-semibold text-msr-success">Save {inr(row.savings)}</p>
+                              ) : (
+                                <p className="mt-1 text-[12px] text-msr-subtle">{row.reason}</p>
+                              )}
+                            </div>
+                            {row.eligible ? (
+                              <button
+                                type="button"
+                                onClick={() => pickCoupon(row)}
+                                disabled={active}
+                                className="shrink-0 rounded-lg px-2 py-1 text-[12px] font-bold text-msr-primary hover:bg-msr-primary-soft disabled:text-msr-success disabled:hover:bg-transparent"
+                              >
+                                {active ? "Applied" : "Apply"}
+                              </button>
+                            ) : null}
+                          </div>
+                        </li>
+                      );
+                    })
+                  ) : (
+                    <li className="py-2 text-center text-[12px] text-msr-subtle">No coupons available for this order.</li>
+                  )}
+                </ul>
+              ) : null}
+            </Panel>
+          ) : null}
 
-                  <dl className="mt-4 space-y-3">
-                    <SummaryRow
-                      label={`Item total (${items.length})`}
-                      value={inr(subtotal)}
-                    />
+          <div className="overflow-hidden rounded-2xl border border-msr-line bg-white">
+            <div className="p-5">
+              <h2 className="text-[15px] font-bold text-msr-ink">Order summary</h2>
+              <dl className="mt-4 space-y-2.5">
+                <SummaryRow label={`Price (${unitCount} ${unitCount === 1 ? "item" : "items"})`} value={inr(mrp || subtotal)} />
+                {productSavings ? <SummaryRow label="Product discount" value={`− ${inr(productSavings)}`} success /> : null}
+                <SummaryRow
+                  label={couponCode && discount ? `Coupon (${couponCode})` : "Coupon discount"}
+                  value={discount ? `− ${inr(discount)}` : "—"}
+                  success={Boolean(discount)}
+                />
+                <SummaryRow label="Delivery" value={delivery ? inr(delivery) : "FREE"} success={!delivery} />
+                {platformFee ? <SummaryRow label="Platform fee" value={inr(platformFee)} /> : null}
+                {partnerFee ? <SummaryRow label="Partner charge" value={inr(partnerFee)} /> : null}
+                {tax ? <SummaryRow label="GST" value={inr(tax)} /> : null}
+              </dl>
 
-                    <SummaryRow
-                      label={
-                        couponCode && discount
-                          ? `Coupon (${couponCode})`
-                          : "Coupon discount"
-                      }
-                      value={
-                        discount
-                          ? `− ${inr(discount)}`
-                          : "—"
-                      }
-                      success={Boolean(discount)}
-                    />
+              <div className="my-4 border-t border-dashed border-msr-line-strong" />
 
-                    <SummaryRow
-                      label="Delivery"
-                      value={
-                        delivery
-                          ? inr(delivery)
-                          : "FREE"
-                      }
-                      success={!delivery}
-                    />
-
-                    {platformFee ? (
-                      <SummaryRow
-                        label="Platform fee"
-                        value={inr(platformFee)}
-                      />
-                    ) : null}
-
-                    {partnerFee ? (
-                      <SummaryRow
-                        label="Partner charge"
-                        value={inr(partnerFee)}
-                      />
-                    ) : null}
-
-                    {tax ? (
-                      <SummaryRow
-                        label="GST"
-                        value={inr(tax)}
-                      />
-                    ) : null}
-                  </dl>
-
-                  <div className="my-4 border-t border-dashed border-[#dfe2e8]" />
-
-                  <div className="flex items-end justify-between gap-3">
-                    <div>
-                      <p className="text-[13px] font-semibold text-[#777c90]">
-                        Total amount
-                      </p>
-
-                      <p className="mt-1 text-[10px] text-[#a0a4b2]">
-                        Inclusive of applicable taxes
-                      </p>
-                    </div>
-
-                    <p className="text-xl font-extrabold tracking-tight text-[#171a38]">
-                      {inr(total)}
-                    </p>
-                  </div>
-
-                  {/* Checkout */}
-
-                  <button
-                    type="button"
-                    onClick={goCheckout}
-                    className="
-                      mt-5
-                      flex h-12 w-full
-                      items-center justify-center
-                      gap-2
-                      rounded-xl
-                      bg-[#0b1460]
-                      text-sm
-                      font-extrabold
-                      text-white
-                      shadow-[0_6px_18px_rgba(11,20,96,0.18)]
-                      transition-all
-                      hover:-translate-y-0.5
-                      hover:bg-[#111b78]
-                      hover:shadow-[0_9px_24px_rgba(11,20,96,0.22)]
-                      active:translate-y-0
-                    "
-                  >
-                    {user
-                      ? "Proceed to checkout"
-                      : "Sign in to checkout"}
-
-                    <ArrowRight className="h-4 w-4" />
-                  </button>
-
-                  <p className="mt-3 text-center text-[10px] leading-4 text-[#a0a4b2]">
-                    Secure checkout · Your order is protected
-                  </p>
+              <div className="flex items-end justify-between gap-3">
+                <div>
+                  <p className="text-[14px] font-bold text-msr-ink">Total amount</p>
+                  <p className="mt-0.5 text-[11px] text-msr-subtle">Inclusive of applicable taxes</p>
                 </div>
-
+                <p className="text-[22px] font-extrabold tracking-tight text-msr-ink">{inr(total)}</p>
               </div>
 
+              {totalSavings > 0 ? (
+                <p className="mt-3 rounded-lg bg-msr-success-soft px-3 py-2 text-center text-[12.5px] font-semibold text-msr-success-ink">
+                  You will save {inr(totalSavings)} on this order
+                </p>
+              ) : null}
+
+              <Button size="lg" block className="mt-4" onClick={goCheckout} disabled={!live}>
+                {!live ? "Waiting for cart sync" : user ? "Proceed to checkout" : "Sign in to checkout"}
+                <ArrowRight className="h-4 w-4" />
+              </Button>
+
+              <p className="mt-3 flex items-center justify-center gap-1.5 text-[11.5px] text-msr-subtle">
+                <ShieldCheck className="h-3.5 w-3.5" />
+                Secure checkout · 100% genuine products
+              </p>
             </div>
-          </aside>
-        </div>
+          </div>
+        </aside>
       </div>
     </div>
   );
 }
 
-/* ============================================================
-   SUMMARY ROW
-============================================================ */
+const SMALL_INPUT =
+  "h-10 w-full min-w-0 rounded-lg border border-msr-line-strong bg-white px-3 text-sm outline-none placeholder:text-msr-subtle focus:border-msr-primary";
 
-function SummaryRow({
-  label,
-  value,
-  success = false,
-}) {
+function Panel({ icon: Icon, iconTone = "primary", title, action, children }) {
+  return (
+    <div className="overflow-hidden rounded-2xl border border-msr-line bg-white">
+      <div className="flex items-center justify-between gap-3 border-b border-msr-line px-4 py-3.5">
+        <div className="flex items-center gap-2.5">
+          <span
+            className={`grid h-8 w-8 place-items-center rounded-lg ${
+              iconTone === "success" ? "bg-msr-success-soft text-msr-success" : "bg-msr-primary-soft text-msr-primary"
+            }`}
+          >
+            <Icon className="h-4 w-4" />
+          </span>
+          <h2 className="text-[14px] font-bold text-msr-ink">{title}</h2>
+        </div>
+        {action}
+      </div>
+      <div className="p-4">{children}</div>
+    </div>
+  );
+}
+
+function SummaryRow({ label, value, success = false }) {
   return (
     <div className="flex items-center justify-between gap-4 text-[13px]">
-      <dt className="min-w-0 text-[#777c90]">
-        {label}
-      </dt>
-
-      <dd
-        className={
-          success
-            ? "shrink-0 font-bold text-msr-success"
-            : "shrink-0 font-semibold text-[#303449]"
-        }
-      >
-        {value}
-      </dd>
+      <dt className="min-w-0 text-msr-muted">{label}</dt>
+      <dd className={success ? "shrink-0 font-semibold text-msr-success" : "shrink-0 font-semibold text-msr-ink"}>{value}</dd>
     </div>
   );
 }

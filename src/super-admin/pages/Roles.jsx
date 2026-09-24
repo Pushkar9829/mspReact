@@ -85,7 +85,7 @@ export default function Roles() {
             const openRow = openId === id;
             const count = row.permissions?.includes("*") ? "All" : row.permissions?.length || 0;
             return (
-              <div key={id} className="rounded-2xl bg-white p-5 shadow-sm">
+              <div key={id} className={`rounded-xl bg-white p-3 shadow-sm ${openRow ? "bg-[#eef0ff] ring-2 ring-msr-navy" : ""}`}>
                 <div className="flex items-start justify-between gap-2">
                   <div>
                     <p className="text-xs uppercase tracking-wide text-msr-muted">{row.scope || "tenant"}</p>

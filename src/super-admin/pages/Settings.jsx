@@ -3,7 +3,7 @@ import { api } from "../../shared/api.js";
 import { useApi } from "../../shared/hooks/useApi.js";
 import { useListQuery } from "../../shared/hooks/useListQuery.js";
 import { PanelState } from "../../shared/components/PanelTable.jsx";
-import { FIELD, PanelToolbar } from "../../shared/components/PanelKit.jsx";
+import { FIELD, PanelTabs, PanelToolbar } from "../../shared/components/PanelKit.jsx";
 
 function parseValue(raw) {
   const text = String(raw ?? "").trim();
@@ -18,6 +18,14 @@ function parseValue(raw) {
     }
   }
   return raw;
+}
+
+function toLocalInput(value) {
+  if (!value) return "";
+  const d = new Date(value);
+  if (Number.isNaN(d.getTime())) return "";
+  const pad = (n) => String(n).padStart(2, "0");
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
 }
 
 function displayValue(value) {
@@ -43,9 +51,11 @@ export default function Settings() {
     () => api.listSettings(query.q ? { q: query.q } : {}),
     [query.q]
   );
+  const [tab, setTab] = useState("fees");
   const [rows, setRows] = useState([]);
   const [msg, setMsg] = useState("");
   const [busy, setBusy] = useState(false);
+  const [festival, setFestival] = useState({ enabled: false, title: "", message: "", startsAt: "", endsAt: "" });
   const [commerce, setCommerce] = useState({
     feeEnabled: false,
     feeAmount: 10,
@@ -65,6 +75,16 @@ export default function Settings() {
         partnerChoice: Boolean(settingValue(data, "platform.deliveryPartnerChoiceEnabled", true)),
         partners: Array.isArray(partners) && partners.length ? partners : DEFAULT_PARTNERS,
       });
+      const wish = settingValue(data, "platform.festival", null);
+      if (wish && typeof wish === "object") {
+        setFestival({
+          enabled: Boolean(wish.enabled),
+          title: wish.title || "",
+          message: wish.message || "",
+          startsAt: toLocalInput(wish.startsAt),
+          endsAt: toLocalInput(wish.endsAt),
+        });
+      }
     }
   }, [data]);
 
@@ -86,11 +106,22 @@ export default function Settings() {
   return (
     <div className="max-w-2xl">
       <h1 className="text-2xl font-extrabold">Platform settings</h1>
-      <p className="mt-1 text-sm text-msr-muted">Platform-scoped keys only. Blur a field or add a new key to save.</p>
-      <PanelToolbar search={q} onSearch={setQ} searchPlaceholder="Setting key" onReset={reset} />
+      <p className="mt-1 text-sm text-msr-muted">Fees, festival wishes, and platform keys.</p>
+      <PanelTabs
+        value={tab}
+        onChange={setTab}
+        tabs={[
+          { id: "fees", label: "Fees" },
+          { id: "festival", label: "Festival" },
+          { id: "keys", label: "Keys" },
+        ]}
+      />
+      {tab === "keys" ? <PanelToolbar search={q} onSearch={setQ} searchPlaceholder="Setting key" onReset={reset} /> : null}
+      {msg ? <p className="mt-3 text-sm text-msr-muted">{msg}</p> : null}
       <PanelState loading={loading && !data} error={error}>
+        {tab === "fees" ? (
         <form
-          className="mt-4 space-y-4 rounded-2xl bg-white p-6 shadow-sm"
+          className="mt-3 space-y-3 rounded-xl bg-white p-4 shadow-sm"
           onSubmit={async (e) => {
             e.preventDefault();
             setBusy(true);
@@ -197,12 +228,87 @@ export default function Settings() {
               </div>
             ))}
           </div>
-          <button type="submit" disabled={busy} className="rounded-xl bg-msr-navy px-5 py-3 font-bold text-white disabled:opacity-50">
+          <button type="submit" disabled={busy} className="rounded-lg bg-msr-navy px-4 py-2 text-[13px] font-semibold text-white disabled:opacity-50">
             {busy ? "Saving…" : "Save fee & partners"}
           </button>
         </form>
+        ) : null}
+        {tab === "festival" ? (
         <form
-          className="mt-4 space-y-4 rounded-2xl bg-white p-6 shadow-sm"
+          className="mt-3 space-y-3 rounded-xl bg-white p-4 shadow-sm"
+          onSubmit={async (e) => {
+            e.preventDefault();
+            setBusy(true);
+            setMsg("");
+            try {
+              await api.upsertSetting("platform.festival", {
+                enabled: festival.enabled,
+                title: festival.title.trim(),
+                message: festival.message.trim(),
+                startsAt: festival.startsAt ? new Date(festival.startsAt).toISOString() : null,
+                endsAt: festival.endsAt ? new Date(festival.endsAt).toISOString() : null,
+              });
+              setMsg("Festival wish saved. Shoppers see it while it is enabled and inside the dates.");
+              reload();
+            } catch (err) {
+              setMsg(err.message);
+            } finally {
+              setBusy(false);
+            }
+          }}
+        >
+          <h2 className="text-lg font-extrabold">Festival wishes</h2>
+          <p className="text-sm font-normal text-msr-muted">A banner on the shop for Diwali, Holi, Eid and any other celebration.</p>
+          <label className="flex items-center gap-2 text-sm font-semibold">
+            <input
+              type="checkbox"
+              checked={festival.enabled}
+              onChange={(e) => setFestival((prev) => ({ ...prev, enabled: e.target.checked }))}
+              className="h-4 w-4"
+            />
+            Show this wish in the app
+          </label>
+          <input
+            value={festival.title}
+            onChange={(e) => setFestival((prev) => ({ ...prev, title: e.target.value }))}
+            placeholder="Title, for example Happy Diwali"
+            className={FIELD}
+          />
+          <textarea
+            value={festival.message}
+            onChange={(e) => setFestival((prev) => ({ ...prev, message: e.target.value }))}
+            rows={3}
+            placeholder="Wish message"
+            className={FIELD}
+          />
+          <div className="grid gap-3 sm:grid-cols-2">
+            <label className="text-sm font-semibold">
+              Starts
+              <input
+                type="datetime-local"
+                value={festival.startsAt}
+                onChange={(e) => setFestival((prev) => ({ ...prev, startsAt: e.target.value }))}
+                className={`mt-1 font-normal ${FIELD}`}
+              />
+            </label>
+            <label className="text-sm font-semibold">
+              Ends
+              <input
+                type="datetime-local"
+                value={festival.endsAt}
+                onChange={(e) => setFestival((prev) => ({ ...prev, endsAt: e.target.value }))}
+                className={`mt-1 font-normal ${FIELD}`}
+              />
+            </label>
+          </div>
+          <button type="submit" disabled={busy} className="rounded-lg bg-msr-navy px-4 py-2 text-[13px] font-semibold text-white disabled:opacity-50">
+            {busy ? "Saving…" : "Save festival wish"}
+          </button>
+        </form>
+        ) : null}
+        {tab === "keys" ? (
+        <form
+          className="mt-3 space-y-3 rounded-xl bg-white p-4 shadow-sm"
           onSubmit={async (e) => {
             e.preventDefault();
             const form = new FormData(e.currentTarget);
@@ -233,12 +339,12 @@ export default function Settings() {
             <p className="text-xs font-bold uppercase tracking-wide text-msr-muted">Add key</p>
             <input name="key" placeholder="setting key" className={FIELD} />
             <input name="value" placeholder="value (JSON allowed)" className={FIELD} />
-            <button type="submit" disabled={busy} className="rounded-xl bg-msr-navy px-5 py-3 font-bold text-white disabled:opacity-50">
+            <button type="submit" disabled={busy} className="rounded-lg bg-msr-navy px-4 py-2 text-[13px] font-semibold text-white disabled:opacity-50">
               {busy ? "Saving…" : "Save"}
             </button>
           </div>
-          {msg ? <p className="text-sm text-msr-muted">{msg}</p> : null}
         </form>
+        ) : null}
       </PanelState>
     </div>
   );

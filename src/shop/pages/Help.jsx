@@ -48,14 +48,14 @@ export default function Help() {
           <a
             key={t.id}
             href={`#${t.id}`}
-            className="rounded-full border border-[#ece6d4] bg-white px-3 py-1.5 text-[12px] font-bold text-msr-navy hover:border-msr-gold"
+            className="rounded-full border border-msr-line bg-white px-3 py-1.5 text-[12px] font-bold text-msr-ink hover:border-msr-primary"
           >
             {t.title}
           </a>
         ))}
         <a
           href="#contact"
-          className="rounded-full border border-[#ece6d4] bg-white px-3 py-1.5 text-[12px] font-bold text-msr-navy hover:border-msr-gold"
+          className="rounded-full border border-msr-line bg-white px-3 py-1.5 text-[12px] font-bold text-msr-ink hover:border-msr-primary"
         >
           Contact
         </a>
@@ -63,11 +63,11 @@ export default function Help() {
 
       <div className="mt-6 overflow-hidden rounded-2xl bg-msr-navy p-5 text-white">
         <div className="flex items-start gap-3">
-          <span className="grid h-10 w-10 place-items-center rounded-xl bg-msr-gold text-msr-navy">
+          <span className="grid h-10 w-10 place-items-center rounded-xl bg-msr-primary text-white">
             <Truck className="h-5 w-5" />
           </span>
           <div>
-            <p className="text-[11px] font-bold uppercase tracking-[0.14em] text-msr-gold">Need a hand?</p>
+            <p className="text-[11px] font-bold uppercase tracking-[0.14em] text-msr-primary">Need a hand?</p>
             <p className="mt-1 text-sm leading-relaxed text-white/75">
               Most orders ship in 1–3 days in metro cities. Jump to a topic below or write to support.
             </p>
@@ -80,7 +80,7 @@ export default function Help() {
           <section key={t.id} id={t.id} className="scroll-mt-24">
             <AccountCard>
               <div className="flex items-center gap-2">
-                <HelpCircle className="h-4 w-4 text-[#8a6a12]" />
+                <HelpCircle className="h-4 w-4 text-msr-muted" />
                 <h2 className="font-bold text-msr-navy">{t.title}</h2>
               </div>
               <p className="mt-2 text-sm leading-relaxed text-msr-muted">{t.text}</p>
@@ -90,7 +90,7 @@ export default function Help() {
         <section id="contact" className="scroll-mt-24">
           <AccountCard>
             <div className="flex items-center gap-2">
-              <Mail className="h-4 w-4 text-[#8a6a12]" />
+              <Mail className="h-4 w-4 text-msr-muted" />
               <h2 className="font-bold text-msr-navy">Contact</h2>
             </div>
             <p className="mt-2 text-sm text-msr-muted">
@@ -99,8 +99,8 @@ export default function Help() {
               </a>{" "}
               · Mon–Sat, 9am–7pm
             </p>
-            <Link to="/category/all" className="mt-4 inline-block text-sm font-bold text-msr-navy">
-              Continue shopping →
+            <Link to="/account/support" className="mt-4 inline-block text-sm font-bold text-msr-navy">
+              Message support →
             </Link>
           </AccountCard>
         </section>

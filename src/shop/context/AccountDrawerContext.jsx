@@ -1,5 +1,5 @@
 import { createContext, useCallback, useContext, useMemo, useState } from "react";
-import { Heart, HelpCircle, MapPin, Package, Tag, UserRound } from "lucide-react";
+import { Heart, HelpCircle, MapPin, MessageCircle, Package, Tag, UserRound } from "lucide-react";
 
 const AccountDrawerContext = createContext(null);
 
@@ -9,6 +9,7 @@ export const ACCOUNT_TABS = [
   { id: "addresses", label: "Addresses", to: "/account/addresses", icon: MapPin },
   { id: "wishlist", label: "Wishlist", to: "/account/wishlist", icon: Heart },
   { id: "coupons", label: "Coupons", to: "/account/coupons", icon: Tag },
+  { id: "support", label: "Support", to: "/account/support", icon: MessageCircle },
   { id: "help", label: "Help", to: "/account/help", icon: HelpCircle },
 ];
 

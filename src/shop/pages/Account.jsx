@@ -11,6 +11,11 @@ export default function Account() {
   const { user, logout, patchUser } = useAuth();
   const [name, setName] = useState(user?.name || "");
   const [phone, setPhone] = useState(user?.phone || "");
+  const [addressLine1, setAddressLine1] = useState("");
+  const [city, setCity] = useState("");
+  const [stateName, setStateName] = useState("");
+  const [postalCode, setPostalCode] = useState("");
+  const [gstin, setGstin] = useState("");
   const [saving, setSaving] = useState(false);
   const [msg, setMsg] = useState("");
   const [error, setError] = useState("");
@@ -34,6 +39,11 @@ export default function Account() {
         if (cancelled) return;
         setName(me.name || "");
         setPhone(me.phone || "");
+        setAddressLine1(me.profile?.addressLine1 || "");
+        setCity(me.profile?.location?.city || "");
+        setStateName(me.profile?.location?.state || "");
+        setPostalCode(me.profile?.location?.postalCode || "");
+        setGstin(me.profile?.gstin || "");
         patchUser({
           name: me.name,
           phone: me.phone || "",
@@ -72,7 +82,15 @@ export default function Account() {
     setMsg("");
     setSaving(true);
     try {
-      const me = await api.updateMe({ name: name.trim(), phone: phone.trim() });
+      const me = await api.updateMe({
+        name: name.trim(),
+        phone: phone.trim(),
+        profile: {
+          addressLine1: addressLine1.trim(),
+          gstin: gstin.trim(),
+          location: { city: city.trim(), state: stateName.trim(), postalCode: postalCode.trim(), country: "IN" },
+        },
+      });
       patchUser({ name: me.name, phone: me.phone || "" });
       setMsg("Profile saved.");
     } catch (err) {
@@ -104,12 +122,11 @@ export default function Account() {
 
   return (
     <div className="space-y-5">
-      <AccountHead title="Profile" subtitle="Name, phone and password for your MS₹ account." />
+      <AccountHead title="Profile" subtitle="Name, mobile, address and optional GST for your MS₹ account." />
 
-      <div className="overflow-hidden rounded-2xl bg-msr-navy text-white">
-        <div className="h-[3px] bg-gradient-to-r from-msr-gold via-white/40 to-msr-gold" />
+      <div className="overflow-hidden rounded-2xl bg-msr-ink text-white">
         <div className="flex items-center gap-4 p-5">
-          <div className="grid h-14 w-14 place-items-center rounded-full bg-msr-gold text-lg font-extrabold text-msr-navy">
+          <div className="grid h-14 w-14 place-items-center rounded-full bg-msr-primary text-lg font-extrabold text-white">
             {initial}
           </div>
           <div className="min-w-0">
@@ -122,24 +139,24 @@ export default function Account() {
 
       <AccountCard>
         <div className="flex items-center gap-2">
-          <span className="grid h-8 w-8 place-items-center rounded-lg bg-[#fffaf0] text-[#8a6a12]">
+            <span className="grid h-8 w-8 place-items-center rounded-lg bg-msr-primary-soft text-msr-primary">
             <Wallet className="h-4 w-4" />
           </span>
-          <p className="text-[11px] font-bold uppercase tracking-[0.14em] text-[#8a6a12]">Ledger balance</p>
+          <p className="text-[11px] font-bold uppercase tracking-[0.14em] text-msr-primary">Ledger balance</p>
         </div>
         <p className="mt-3 text-3xl font-extrabold text-msr-navy">
           {ledger.balance == null ? "—" : inr(ledger.balance)}
         </p>
-        <p className="mt-1 text-sm text-[#8b8ea3]">
+        <p className="mt-1 text-sm text-msr-muted">
           {ledger.updatedAt ? `Updated ${new Date(ledger.updatedAt).toLocaleString("en-IN")}` : "Live account credit"}
         </p>
         {ledger.entries?.length ? (
-          <ul className="mt-4 divide-y border-t border-[#ece6d4] text-sm">
+          <ul className="mt-4 divide-y border-t border-msr-line text-sm">
             {ledger.entries.slice(0, 6).map((row) => (
               <li key={row._id || row.createdAt} className="flex items-center justify-between gap-3 py-2.5">
                 <span>
                   <span className="font-medium text-msr-navy">{row.note || row.type}</span>
-                  <span className="mt-0.5 block text-[12px] text-[#8b8ea3]">
+                  <span className="mt-0.5 block text-[12px] text-msr-muted">
                     {row.createdAt ? new Date(row.createdAt).toLocaleDateString("en-IN") : ""}
                   </span>
                 </span>
@@ -156,10 +173,10 @@ export default function Account() {
       <form onSubmit={saveProfile}>
         <AccountCard>
           <div className="flex items-center gap-2">
-            <span className="grid h-8 w-8 place-items-center rounded-lg bg-[#fffaf0] text-[#8a6a12]">
+            <span className="grid h-8 w-8 place-items-center rounded-lg bg-msr-surface text-msr-muted">
               <UserRound className="h-4 w-4" />
             </span>
-            <p className="text-[11px] font-bold uppercase tracking-[0.14em] text-[#8a6a12]">Details</p>
+            <p className="text-[11px] font-bold uppercase tracking-[0.14em] text-msr-muted">Details</p>
           </div>
           <div className="mt-4 grid gap-3 sm:grid-cols-2">
             <AccountField label="Full name">
@@ -176,6 +193,21 @@ export default function Account() {
             <AccountField label="Email" className="sm:col-span-2">
               <input className={`${accountField} bg-msr-bg`} value={user?.email || ""} readOnly />
             </AccountField>
+            <AccountField label="Address" className="sm:col-span-2">
+              <input className={accountField} value={addressLine1} onChange={(e) => setAddressLine1(e.target.value)} />
+            </AccountField>
+            <AccountField label="City">
+              <input className={accountField} value={city} onChange={(e) => setCity(e.target.value)} />
+            </AccountField>
+            <AccountField label="State">
+              <input className={accountField} value={stateName} onChange={(e) => setStateName(e.target.value)} />
+            </AccountField>
+            <AccountField label="PIN">
+              <input className={accountField} value={postalCode} onChange={(e) => setPostalCode(e.target.value)} />
+            </AccountField>
+            <AccountField label="GSTIN (optional)">
+              <input className={accountField} value={gstin} onChange={(e) => setGstin(e.target.value)} placeholder="Optional" />
+            </AccountField>
           </div>
           {error ? <p className="mt-3 text-sm text-msr-danger">{error}</p> : null}
           {msg ? <p className="mt-3 text-sm font-semibold text-msr-success">{msg}</p> : null}
@@ -183,14 +215,14 @@ export default function Account() {
             <button
               type="submit"
               disabled={saving}
-              className="rounded-full bg-msr-navy px-5 py-2.5 text-sm font-bold text-white disabled:opacity-60"
+              className="rounded-xl bg-msr-primary px-5 py-2.5 text-sm font-bold text-white disabled:opacity-60"
             >
               {saving ? "Saving…" : "Save profile"}
             </button>
             {user?.role && user.role !== ROLES.BUYER ? (
               <Link
                 to={homeFor(user.role)}
-                className="rounded-full border border-[#ece6d4] px-5 py-2.5 text-sm font-bold text-msr-navy"
+                className="rounded-xl border border-msr-line px-5 py-2.5 text-sm font-bold text-msr-navy"
               >
                 Open {user.role === ROLES.SUPER_ADMIN ? "company" : "tenant"} panel
               </Link>
@@ -202,10 +234,10 @@ export default function Account() {
       <form onSubmit={savePassword}>
         <AccountCard>
           <div className="flex items-center gap-2">
-            <span className="grid h-8 w-8 place-items-center rounded-lg bg-[#fffaf0] text-[#8a6a12]">
+            <span className="grid h-8 w-8 place-items-center rounded-lg bg-msr-surface text-msr-muted">
               <KeyRound className="h-4 w-4" />
             </span>
-            <p className="text-[11px] font-bold uppercase tracking-[0.14em] text-[#8a6a12]">Password</p>
+            <p className="text-[11px] font-bold uppercase tracking-[0.14em] text-msr-muted">Password</p>
           </div>
           <div className="mt-4 grid gap-3 sm:grid-cols-2">
             <AccountField label="Current password">
@@ -228,7 +260,7 @@ export default function Account() {
               />
             </AccountField>
           </div>
-          <p className="mt-2 flex items-center gap-1.5 text-[12px] text-[#8b8ea3]">
+          <p className="mt-2 flex items-center gap-1.5 text-[12px] text-msr-muted">
             <ShieldCheck className="h-3.5 w-3.5" />
             At least 8 characters.
           </p>
@@ -237,7 +269,7 @@ export default function Account() {
           <button
             type="submit"
             disabled={passBusy}
-            className="mt-4 rounded-full bg-msr-navy px-5 py-2.5 text-sm font-bold text-white disabled:opacity-60"
+            className="mt-4 rounded-xl bg-msr-primary px-5 py-2.5 text-sm font-bold text-white disabled:opacity-60"
           >
             {passBusy ? "Updating…" : "Update password"}
           </button>
@@ -247,7 +279,7 @@ export default function Account() {
       <AccountCard className="flex flex-wrap items-center justify-between gap-3">
         <div>
           <p className="font-bold text-msr-navy">Sign out</p>
-          <p className="mt-0.5 text-sm text-[#8b8ea3]">You can sign back in anytime on this device.</p>
+          <p className="mt-0.5 text-sm text-msr-muted">You can sign back in anytime on this device.</p>
         </div>
         <button
           type="button"

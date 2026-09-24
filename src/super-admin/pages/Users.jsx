@@ -16,6 +16,7 @@ export default function Users() {
   const roleRows = rowsOf(roles.data);
   const tenantRows = rowsOf(tenants.data);
   const [open, setOpen] = useState(false);
+  const [profile, setProfile] = useState(null);
   const [msg, setMsg] = useState("");
   const [busy, setBusy] = useState("");
 
@@ -100,9 +101,13 @@ export default function Users() {
         <PanelTable
           rows={rows}
           rowKey={rowId}
+          selectedKey={profile ? rowId(profile) : ""}
+          onRowClick={(row) => setProfile(row)}
           columns={[
             { key: "name", label: "Name", render: (row) => <span className="font-semibold">{row.name}</span> },
             { key: "email", label: "Email", render: (row) => row.email },
+            { key: "phone", label: "Mobile", render: (row) => row.phone || "—" },
+            { key: "gstin", label: "GST", render: (row) => row.profile?.gstin || "—" },
             { key: "role", label: "Role", render: (row) => prettyStatus(row.role?.slug || row.roleId?.slug) },
             { key: "tenant", label: "Tenant", render: (row) => row.tenant?.name || row.tenantId?.name || "Platform" },
             { key: "status", label: "Status", render: (row) => <StatusBadge value={row.status} /> },
@@ -110,7 +115,7 @@ export default function Users() {
               key: "actions",
               label: "",
               render: (row) => (
-                <div className="flex flex-wrap gap-2">
+                <div className="flex flex-wrap gap-2" onClick={(e) => e.stopPropagation()}>
                   {row.status !== "active" ? (
                     <ActionBtn disabled={busy === rowId(row)} onClick={() => setStatus(rowId(row), "active")}>
                       Activate
@@ -127,6 +132,32 @@ export default function Users() {
         />
       </PanelState>
       <PanelPager meta={metaOf(data)} page={page} onPage={setPage} />
+      {profile ? (
+        <div className="mt-4 rounded-2xl bg-white p-5 shadow-sm">
+          <div className="flex items-start justify-between gap-3">
+            <h2 className="font-bold">{profile.name}</h2>
+            <button type="button" className="text-xs font-bold text-msr-purple" onClick={() => setProfile(null)}>
+              Close
+            </button>
+          </div>
+          <dl className="mt-3 grid gap-2 text-sm sm:grid-cols-2">
+            <div>Email · {profile.email || "—"}</div>
+            <div>Mobile · {profile.phone || "—"}</div>
+            <div>GST · {profile.profile?.gstin || "Not provided"}</div>
+            <div>
+              Address ·{" "}
+              {[
+                profile.profile?.addressLine1,
+                profile.profile?.location?.city,
+                profile.profile?.location?.state,
+                profile.profile?.location?.postalCode,
+              ]
+                .filter(Boolean)
+                .join(", ") || "—"}
+            </div>
+          </dl>
+        </div>
+      ) : null}
       {open ? (
         <PanelModal title="Create user" onClose={() => setOpen(false)}>
           <form className="grid gap-3" onSubmit={create}>

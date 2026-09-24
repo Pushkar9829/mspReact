@@ -130,7 +130,7 @@ export default function SupportInbox({
                     key={id}
                     type="button"
                     onClick={() => setActiveId(id)}
-                    className={`rounded-2xl bg-white p-4 text-left shadow-sm ${selected ? "ring-1 ring-msr-navy/20" : ""}`}
+                    className={`rounded-xl bg-white p-3 text-left shadow-sm ${selected ? "bg-[#eef0ff] ring-2 ring-msr-navy" : ""}`}
                   >
                     <div className="flex items-start justify-between gap-3">
                       <div>

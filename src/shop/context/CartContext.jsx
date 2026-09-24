@@ -36,6 +36,31 @@ function flattenQuote(quote) {
   );
 }
 
+function wishId(entry) {
+  return typeof entry === "string" ? entry : entry?.id;
+}
+
+function wishSnapshot(product) {
+  if (!product || typeof product !== "object" || !product.id) return null;
+  return {
+    id: product.id,
+    name: product.name,
+    brand: product.brand || "",
+    category: product.category || "",
+    image: product.image,
+    price: product.price,
+    mrp: product.mrp,
+    weight: product.weight || "",
+    rating: product.rating,
+    reviews: product.reviews,
+    stock: product.stock,
+    deal: Boolean(product.deal),
+    newLaunch: Boolean(product.newLaunch),
+    bestseller: Boolean(product.bestseller),
+    badge: product.badge || "",
+  };
+}
+
 const emptyQuote = {
   groups: [],
   itemCount: 0,
@@ -132,28 +157,10 @@ export function CartProvider({ children }) {
             fulfillmentMode: fulfillmentMode || product.fulfillmentMode,
           });
           applyQuote(next);
-        } catch {
-          setItems((prev) => {
-            const idx = prev.findIndex((i) => i.id === product.id && i.pack === packSize);
-            if (idx >= 0) {
-              const next = [...prev];
-              next[idx] = { ...next[idx], qty: next[idx].qty + qty };
-              return next;
-            }
-            return [
-              ...prev,
-              {
-                id: product.id,
-                name: product.name,
-                image: product.image,
-                price: product.price,
-                mrp: product.mrp,
-                pack: packSize,
-                qty,
-              },
-            ];
-          });
-          setLive(false);
+        } catch (err) {
+          const message = err.message || "Could not add to cart";
+          setError(message);
+          throw err;
         }
       },
       setQty: async (id, pack, qty) => {
@@ -195,11 +202,17 @@ export function CartProvider({ children }) {
         setQuote(emptyQuote);
       },
       wishlist,
-      isWished: (id) => wishlist.includes(id),
-      toggleWish: (id) => {
-        setWishlist((prev) => (prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]));
+      isWished: (id) => wishlist.some((entry) => wishId(entry) === id),
+      toggleWish: (productOrId) => {
+        const id = wishId(productOrId);
+        if (!id) return;
+        setWishlist((prev) => {
+          if (prev.some((entry) => wishId(entry) === id)) return prev.filter((entry) => wishId(entry) !== id);
+          const snap = wishSnapshot(productOrId) || getProduct(id);
+          return snap ? [...prev, snap] : prev;
+        });
       },
-      wishedProducts: wishlist.map(getProduct).filter(Boolean),
+      wishedProducts: wishlist.map((entry) => (typeof entry === "string" ? getProduct(entry) : entry)).filter(Boolean),
     };
   }, [items, quote, live, error, wishlist, refresh, applyQuote]);
 

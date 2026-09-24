@@ -12,11 +12,14 @@ export default function Products() {
   const { q, setQ, page, setPage, filters, setFilter, reset, query } = useListQuery();
   const { data, error, loading, reload } = useApi(() => api.listStaffProducts(query), [query]);
   const categories = useApi(() => api.listCategories(), []);
+  const brands = useApi(() => api.listBrands().catch(() => []), []);
   const warehouses = useApi(() => api.listWarehouses(), []);
   const rows = rowsOf(data);
   const categoryRows = rowsOf(categories.data);
+  const brandRows = rowsOf(brands.data);
   const warehouseRows = Array.isArray(warehouses.data) ? warehouses.data : rowsOf(warehouses.data);
   const [open, setOpen] = useState(false);
+  const [catalog, setCatalog] = useState("");
   const [editing, setEditing] = useState(null);
   const [msg, setMsg] = useState("");
   const [busy, setBusy] = useState("");
@@ -39,12 +42,14 @@ export default function Products() {
         sellingPrice: Number(form.get("sellingPrice") || 0),
         listPrice: Number(form.get("listPrice") || form.get("sellingPrice") || 0),
         categoryId: String(form.get("categoryId") || "") || undefined,
+        brandId: String(form.get("brandId") || "") || undefined,
         status: "draft",
         easyReturn: Boolean(form.get("easyReturn")),
         deliveryModes: deliveryModes.length ? deliveryModes : ["delivery_partner"],
         wholesale: {
           moq: Number(form.get("moq") || 1),
           maxQty: form.get("maxQty") === "" ? null : Number(form.get("maxQty")),
+          packMultiple: Math.max(1, Number(form.get("packMultiple") || 1)),
         },
         ...(warehouseId ? { initialStock: { warehouseId, qty } } : {}),
       });
@@ -84,14 +89,52 @@ export default function Products() {
       await api.updateProduct(rowId(editing), {
         easyReturn: Boolean(form.get("easyReturn")),
         deliveryModes: deliveryModes.length ? deliveryModes : ["delivery_partner"],
+        sellingPrice: Number(form.get("sellingPrice") || 0),
+        listPrice: Number(form.get("listPrice") || form.get("sellingPrice") || 0),
+        availableQty: Number(form.get("availableQty") || 0),
         wholesale: {
           ...(editing.wholesale || {}),
           moq: Number(form.get("moq") || editing.wholesale?.moq || 1),
           maxQty: form.get("maxQty") === "" ? null : Number(form.get("maxQty")),
+          packMultiple: Math.max(1, Number(form.get("packMultiple") || editing.wholesale?.packMultiple || 1)),
         },
       });
       setEditing(null);
       reload();
+    } catch (err) {
+      setMsg(err.message);
+    } finally {
+      setBusy("");
+    }
+  }
+
+  async function setEnabled(row, enabled) {
+    const id = rowId(row);
+    setBusy(id);
+    setMsg("");
+    try {
+      if (enabled && row.status !== "published") await api.publishProduct(id);
+      await api.updateProduct(id, { enabled });
+      reload();
+    } catch (err) {
+      setMsg(err.message);
+    } finally {
+      setBusy("");
+    }
+  }
+
+  async function createCatalog(e) {
+    e.preventDefault();
+    setBusy(catalog);
+    setMsg("");
+    const form = new FormData(e.currentTarget);
+    const name = String(form.get("name") || "").trim();
+    try {
+      if (catalog === "category") await api.createCategory({ name });
+      else await api.createBrand({ name });
+      setCatalog("");
+      categories.reload();
+      brands.reload();
     } catch (err) {
       setMsg(err.message);
     } finally {
@@ -119,9 +162,17 @@ export default function Products() {
           <h1 className="text-2xl font-extrabold">Products</h1>
           <p className="mt-1 text-sm text-msr-muted">Search, filter, publish, or add a SKU.</p>
         </div>
-        <button type="button" onClick={() => setOpen(true)} className="rounded-xl bg-msr-navy px-4 py-2 text-sm font-bold text-white">
-          New product
-        </button>
+        <div className="flex flex-wrap gap-2">
+          <button type="button" onClick={() => setCatalog("category")} className="rounded-xl border border-msr-border px-4 py-2 text-sm font-bold">
+            New category
+          </button>
+          <button type="button" onClick={() => setCatalog("brand")} className="rounded-xl border border-msr-border px-4 py-2 text-sm font-bold">
+            New brand
+          </button>
+          <button type="button" onClick={() => setOpen(true)} className="rounded-xl bg-msr-navy px-4 py-2 text-sm font-bold text-white">
+            New product
+          </button>
+        </div>
       </div>
       <PanelToolbar
         search={q}
@@ -150,6 +201,7 @@ export default function Products() {
         <PanelTable
           rows={rows}
           rowKey={rowId}
+          selectedKey={editing ? rowId(editing) : ""}
           columns={[
             { key: "name", label: "Product", render: (row) => <span className="font-semibold">{row.name}</span> },
             { key: "sku", label: "SKU", render: (row) => <span className="font-mono text-xs">{row.primarySku || row.sku}</span> },
@@ -157,13 +209,27 @@ export default function Products() {
             { key: "price", label: "Price", render: (row) => (row.sellingPrice != null ? inr(row.sellingPrice) : "—") },
             { key: "stock", label: "Available", render: (row) => row.available ?? "—" },
             { key: "limit", label: "Order limit", render: (row) => row.wholesale?.maxQty || "—" },
-            { key: "status", label: "Status", render: (row) => <StatusBadge value={row.status} /> },
+            { key: "pack", label: "Pack step", render: (row) => row.wholesale?.packMultiple || 1 },
+            {
+              key: "status",
+              label: "Status",
+              render: (row) => (
+                <StatusBadge value={row.status === "published" && row.enabled === false ? "disabled" : row.status} />
+              ),
+            },
             {
               key: "actions",
               label: "",
               render: (row) => (
                 <div className="flex flex-wrap gap-2">
-                  <ActionBtn onClick={() => setEditing(row)}>Flags</ActionBtn>
+                  <ActionBtn onClick={() => setEditing(row)}>Edit</ActionBtn>
+                  <ActionBtn
+                    danger={row.enabled !== false && row.status === "published"}
+                    disabled={busy === rowId(row)}
+                    onClick={() => setEnabled(row, !(row.enabled !== false && row.status === "published"))}
+                  >
+                    {row.enabled !== false && row.status === "published" ? "Disable" : "Enable"}
+                  </ActionBtn>
                   {row.status !== "published" ? (
                     <ActionBtn disabled={busy === rowId(row)} onClick={() => publish(rowId(row))}>
                       Publish
@@ -195,6 +261,14 @@ export default function Products() {
                 </option>
               ))}
             </select>
+            <select name="brandId" className={FIELD} defaultValue="">
+              <option value="">No brand</option>
+              {brandRows.map((row) => (
+                <option key={rowId(row)} value={rowId(row)}>
+                  {row.name}
+                </option>
+              ))}
+            </select>
             <select name="warehouseId" className={FIELD} defaultValue="">
               <option value="">No opening stock</option>
               {warehouseRows.map((row) => (
@@ -206,6 +280,7 @@ export default function Products() {
             <input name="qty" type="number" min="0" placeholder="Opening qty" className={FIELD} />
             <input name="moq" type="number" min="1" defaultValue="1" placeholder="Minimum order qty" className={FIELD} />
             <input name="maxQty" type="number" min="1" placeholder="Max qty per order (optional)" className={FIELD} />
+            <input name="packMultiple" type="number" min="1" defaultValue="1" placeholder="Pack multiple (qty step)" className={FIELD} />
             <label className="flex items-center gap-2 text-sm font-semibold">
               <input name="easyReturn" type="checkbox" defaultChecked className="h-4 w-4" />
               Easy return
@@ -229,8 +304,43 @@ export default function Products() {
         </PanelModal>
       ) : null}
       {editing ? (
-        <PanelModal title={`Flags · ${editing.name}`} onClose={() => setEditing(null)}>
+        <PanelModal title={`Edit · ${editing.name}`} onClose={() => setEditing(null)}>
           <form className="grid gap-3" onSubmit={saveFlags}>
+            <label className="block text-sm font-semibold">
+              Selling price
+              <input
+                name="sellingPrice"
+                type="number"
+                min="0"
+                step="0.01"
+                required
+                defaultValue={editing.sellingPrice ?? ""}
+                className={`mt-1 font-normal ${FIELD}`}
+              />
+            </label>
+            <label className="block text-sm font-semibold">
+              List price
+              <input
+                name="listPrice"
+                type="number"
+                min="0"
+                step="0.01"
+                defaultValue={editing.listPrice ?? editing.sellingPrice ?? ""}
+                className={`mt-1 font-normal ${FIELD}`}
+              />
+            </label>
+            <label className="block text-sm font-semibold">
+              Available
+              <input
+                name="availableQty"
+                type="number"
+                min="0"
+                step="1"
+                required
+                defaultValue={editing.available ?? 0}
+                className={`mt-1 font-normal ${FIELD}`}
+              />
+            </label>
             <label className="flex items-center gap-2 text-sm font-semibold">
               <input name="easyReturn" type="checkbox" defaultChecked={Boolean(editing.easyReturn)} className="h-4 w-4" />
               Easy return
@@ -257,6 +367,17 @@ export default function Products() {
               />
               <span className="mt-1 block text-xs font-normal text-msr-muted">Leave empty for no cap. Buyers cannot exceed this on one stock item.</span>
             </label>
+            <label className="block text-sm font-semibold">
+              Pack multiple
+              <input
+                name="packMultiple"
+                type="number"
+                min="1"
+                defaultValue={editing.wholesale?.packMultiple || 1}
+                className={`mt-1 font-normal ${FIELD}`}
+              />
+              <span className="mt-1 block text-xs font-normal text-msr-muted">Buyers must order in multiples of this number.</span>
+            </label>
             <fieldset className="rounded-xl border border-[#eceef4] p-3">
               <legend className="px-1 text-xs font-bold uppercase tracking-[0.12em] text-msr-muted">Delivery</legend>
               <label className="mt-1 flex items-center gap-2 text-sm">
@@ -281,6 +402,17 @@ export default function Products() {
             {msg ? <p className="text-sm text-msr-danger">{msg}</p> : null}
             <button disabled={busy === "edit"} className="rounded-xl bg-msr-navy py-2.5 font-bold text-white disabled:opacity-50">
               {busy === "edit" ? "Saving…" : "Save flags"}
+            </button>
+          </form>
+        </PanelModal>
+      ) : null}
+      {catalog ? (
+        <PanelModal title={catalog === "category" ? "New category" : "New brand"} onClose={() => setCatalog("")}>
+          <form className="grid gap-3" onSubmit={createCatalog}>
+            <input name="name" required placeholder={catalog === "category" ? "Category name" : "Brand name"} className={FIELD} />
+            {msg ? <p className="text-sm text-msr-danger">{msg}</p> : null}
+            <button disabled={busy === catalog} className="rounded-xl bg-msr-navy py-2.5 font-bold text-white disabled:opacity-50">
+              {busy === catalog ? "Saving…" : "Create"}
             </button>
           </form>
         </PanelModal>

@@ -1,6 +1,7 @@
 import {
   Building2,
   FileText,
+  Package,
   LayoutDashboard,
   LineChart,
   MessageSquare,
@@ -17,6 +18,7 @@ import { ROLES } from "../../shared/auth.js";
 const links = [
   { to: "/super-admin", icon: LayoutDashboard, label: "Overview", end: true },
   { to: "/super-admin/tenants", icon: Building2, label: "Tenants" },
+  { to: "/super-admin/catalog", icon: Package, label: "Catalog" },
   { to: "/super-admin/users", icon: Users, label: "Users" },
   { to: "/super-admin/roles", icon: Shield, label: "Roles" },
   { to: "/super-admin/orders", icon: ShoppingBag, label: "Orders" },

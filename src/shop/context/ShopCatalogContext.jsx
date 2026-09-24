@@ -7,6 +7,7 @@ import {
   setLiveCatalog,
 } from "../data/catalog.js";
 import { mapApiProduct, mapCategory } from "../lib/mapProduct.js";
+import { searchAllProducts } from "../lib/loadTagged.js";
 import { BRAND_LOGO } from "../lib/brandLogo.js";
 
 const ShopCatalogContext = createContext(null);
@@ -22,23 +23,24 @@ export function ShopCatalogProvider({ children }) {
     let cancelled = false;
     (async () => {
       try {
-        const [catRes, search, publicSettings] = await Promise.all([
+        const [catRes, searchRows, publicSettings] = await Promise.all([
           api.listCategories({ status: "active", parentId: "null" }),
-          api.searchProducts({ limit: 100 }),
+          searchAllProducts(),
           api.publicSettings().catch(() => null),
         ]);
         if (cancelled) return;
         const catRows = (Array.isArray(catRes) ? catRes : catRes.data || []).map(mapCategory).filter(Boolean);
-        const productRows = (search.data || []).map(mapApiProduct).filter(Boolean);
+        const productRows = searchRows.map(mapApiProduct).filter(Boolean);
         if (catRows.length) setCategories(catRows);
         if (productRows.length) {
           setProducts(productRows);
           setLiveCatalog(productRows);
         }
-        if (publicSettings?.slogan || publicSettings?.name) {
+        if (publicSettings?.slogan || publicSettings?.name || publicSettings?.festival) {
           setBranding({
             name: publicSettings.name || "MSP Wholesale Marketplace",
             slogan: publicSettings.slogan || "भाव भी भरोसा भी",
+            festival: publicSettings.festival || null,
           });
         }
         setLive(true);

@@ -78,6 +78,7 @@ export function mapApiProduct(doc) {
     badge: tags.includes("bestseller") ? "Best seller" : "",
     easyReturn: Boolean(doc.easyReturn ?? spec.easyReturn),
     deliveryModes,
+    pickupAddress: doc.pickupAddress || null,
   };
 }
 
@@ -96,5 +97,9 @@ export function mapCategory(doc) {
 export function mapLookup(res) {
   if (!res?.product) return null;
   const raw = typeof res.product.toObject === "function" ? res.product.toObject() : res.product;
-  return mapApiProduct({ ...raw, variants: res.variants || (res.variant ? [res.variant] : []) });
+  return mapApiProduct({
+    ...raw,
+    variants: res.variants || (res.variant ? [res.variant] : []),
+    pickupAddress: res.pickupAddress || null,
+  });
 }

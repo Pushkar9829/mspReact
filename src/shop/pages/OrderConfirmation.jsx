@@ -4,26 +4,40 @@ import { CheckCircle2, RotateCcw, Store, Truck } from "lucide-react";
 import { api } from "../../shared/api.js";
 import { formatDate, formatEta, inr } from "../../shared/lib/format.js";
 import { useAuth } from "../../shared/context/AuthContext.jsx";
+import { Button, buttonClass } from "../components/shopUi.jsx";
 
 export default function OrderConfirmation() {
   const { id } = useParams();
   const location = useLocation();
   const { user } = useAuth();
   const navigate = useNavigate();
-  const [orders, setOrders] = useState(location.state?.orders || []);
+  const placed = location.state?.orders || [];
+  const [orders, setOrders] = useState(placed);
   const [error, setError] = useState("");
   const [busyId, setBusyId] = useState("");
+  const [loading, setLoading] = useState(!placed.length);
 
   useEffect(() => {
-    if (orders.length || !user?.token) return undefined;
+    if (orders.length) {
+      setLoading(false);
+      return undefined;
+    }
+    if (!user?.token) {
+      setLoading(false);
+      return undefined;
+    }
     let cancelled = false;
+    setLoading(true);
     api
       .getOrder(id)
       .then((order) => {
-        if (!cancelled) setOrders([order]);
+        if (!cancelled) setOrders(order ? [order] : []);
       })
       .catch((err) => {
         if (!cancelled) setError(err.message);
+      })
+      .finally(() => {
+        if (!cancelled) setLoading(false);
       });
     return () => {
       cancelled = true;
@@ -41,32 +55,70 @@ export default function OrderConfirmation() {
     credit_terms: "Credit terms",
   };
 
+  if (loading) {
+    return (
+      <div className="msr-gutter py-20 text-center">
+        <p className="text-sm text-msr-muted">Loading order…</p>
+      </div>
+    );
+  }
+
+  if (!primary) {
+    return (
+      <div className="msr-gutter py-16 text-center">
+        <h1 className="text-3xl font-extrabold tracking-tight text-msr-ink">Order not available</h1>
+        <p className="mx-auto mt-2 max-w-md text-msr-muted">
+          {error || (user?.token ? "We could not find this order." : "Sign in to view this order.")}
+        </p>
+        <div className="mt-6 flex flex-wrap justify-center gap-3">
+          {!user?.token ? (
+            <Link to="/login" state={{ from: `/order/${id}` }} className={buttonClass()}>
+              Sign in
+            </Link>
+          ) : null}
+          <Link to="/account/orders" className={buttonClass({ variant: "secondary" })}>
+            View orders
+          </Link>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="msr-gutter py-10 md:py-14">
       <div className="mx-auto max-w-2xl text-center">
-        <CheckCircle2 className="mx-auto h-14 w-14 text-msr-success" />
-        <h1 className="mt-4 text-3xl font-extrabold tracking-tight text-[#1a1c3d]">Order placed</h1>
-        <p className="mt-2 text-[#6b7280]">Thanks for shopping with MS₹. We’ll send updates as your order moves.</p>
+        {placed.length ? (
+          <span className="mx-auto grid h-16 w-16 place-items-center rounded-full bg-msr-success-soft text-msr-success">
+            <CheckCircle2 className="h-9 w-9" />
+          </span>
+        ) : null}
+        <h1 className={`text-3xl font-extrabold tracking-tight text-msr-ink ${placed.length ? "mt-4" : ""}`}>
+          {placed.length ? "Order placed" : "Order details"}
+        </h1>
+        <p className="mt-2 text-msr-muted">
+          {placed.length
+            ? "Thanks for shopping with MS₹. We’ll send updates as your order moves."
+            : "Pickup, delivery, fees and payment for this order."}
+        </p>
+        {error ? <p className="mt-2 text-sm text-msr-danger">{error}</p> : null}
       </div>
 
-      {error && !primary ? <p className="mx-auto mt-6 max-w-2xl text-center text-sm text-msr-danger">{error}</p> : null}
-
       <div className="mx-auto mt-8 max-w-2xl space-y-4">
-        {(orders.length ? orders : [{ orderNumber: id, total: 0, items: [] }]).map((order) => (
-          <article key={order._id || order.orderNumber} className="rounded-2xl border border-[#eceef4] bg-white p-6">
+        {orders.map((order) => (
+          <article key={order._id || order.orderNumber} className="rounded-2xl border border-msr-line bg-white p-6 shadow-card">
             <div className="flex flex-wrap items-start justify-between gap-3">
               <div>
-                <p className="text-[12px] font-bold uppercase tracking-[0.14em] text-msr-accent">Order</p>
-                <p className="mt-1 text-lg font-extrabold text-[#1a1c3d]">{order.orderNumber || id}</p>
-                {order.createdAt ? <p className="mt-1 text-sm text-[#8b8ea3]">{formatDate(order.createdAt)}</p> : null}
+                <p className="text-[12px] font-bold uppercase tracking-[0.14em] text-msr-primary">Order</p>
+                <p className="mt-1 text-lg font-extrabold text-msr-ink">{order.orderNumber || id}</p>
+                {order.createdAt ? <p className="mt-1 text-sm text-msr-subtle">{formatDate(order.createdAt)}</p> : null}
               </div>
-              <span className="rounded-full bg-emerald-50 px-3 py-1 text-[12px] font-bold capitalize text-msr-success">
+              <span className="rounded-full bg-msr-success-soft px-3 py-1 text-[12px] font-bold capitalize text-msr-success-ink">
                 {order.status || "pending"}
               </span>
             </div>
 
             {order.items?.length ? (
-              <div className="mt-5 space-y-4 border-t border-[#eceef4] pt-4">
+              <div className="mt-5 space-y-4 border-t border-msr-line pt-4">
                 <FulfillmentGroup
                   title="Store pickup"
                   icon={Store}
@@ -80,43 +132,41 @@ export default function OrderConfirmation() {
               </div>
             ) : null}
 
-            <dl className="mt-4 space-y-2 border-t border-[#eceef4] pt-4 text-sm">
+            <dl className="mt-4 space-y-2 border-t border-msr-line pt-4 text-sm">
               {order.deliveryFee ? (
-                <div className="flex justify-between text-[#6b7280]">
+                <div className="flex justify-between text-msr-muted">
                   <dt>Delivery</dt>
                   <dd>{inr(order.deliveryFee)}</dd>
                 </div>
               ) : null}
               {order.platformFee ? (
-                <div className="flex justify-between text-[#6b7280]">
+                <div className="flex justify-between text-msr-muted">
                   <dt>Platform fee</dt>
                   <dd>{inr(order.platformFee)}</dd>
                 </div>
               ) : null}
               {order.partnerFee || order.deliveryPartner?.name ? (
-                <div className="flex justify-between text-[#6b7280]">
+                <div className="flex justify-between text-msr-muted">
                   <dt>{order.deliveryPartner?.name ? `${order.deliveryPartner.name} charge` : "Partner charge"}</dt>
                   <dd>{order.partnerFee ? inr(order.partnerFee) : "FREE"}</dd>
                 </div>
               ) : null}
-              <div className="flex justify-between text-base font-extrabold text-[#1a1c3d]">
+              <div className="flex justify-between text-base font-extrabold text-msr-ink">
                 <dt>Total</dt>
                 <dd>{inr(order.total)}</dd>
               </div>
             </dl>
             {order.paymentMethod ? (
-              <p className="mt-2 text-sm text-[#6b7280]">Paid via {payLabel[order.paymentMethod] || order.paymentMethod}</p>
+              <p className="mt-2 text-sm text-msr-muted">Paid via {payLabel[order.paymentMethod] || order.paymentMethod}</p>
             ) : null}
-            {order.etaFrom ? (
-              <p className="mt-1 text-sm text-[#6b7280]">ETA {formatEta(order.etaFrom, order.etaTo)}</p>
-            ) : null}
+            {order.etaFrom ? <p className="mt-1 text-sm text-msr-muted">ETA {formatEta(order.etaFrom, order.etaTo)}</p> : null}
           </article>
         ))}
 
         {addr ? (
-          <div className="rounded-2xl border border-[#eceef4] bg-white p-6 text-sm">
-            <h2 className="font-bold text-[#1a1c3d]">Delivering to</h2>
-            <p className="mt-2 leading-6 text-[#6b7280]">
+          <div className="rounded-2xl border border-msr-line bg-white p-6 text-sm shadow-card">
+            <h2 className="font-bold text-msr-ink">Delivering to</h2>
+            <p className="mt-2 leading-6 text-msr-muted">
               {addr.contactName}
               <br />
               {addr.addressLine1}
@@ -129,8 +179,8 @@ export default function OrderConfirmation() {
 
         <div className="flex flex-wrap justify-center gap-3">
           {primary?._id ? (
-            <button
-              type="button"
+            <Button
+              variant="gold"
               disabled={busyId === primary._id}
               onClick={async () => {
                 setBusyId(primary._id);
@@ -144,16 +194,15 @@ export default function OrderConfirmation() {
                   setBusyId("");
                 }
               }}
-              className="inline-flex items-center gap-2 rounded-xl bg-msr-gold px-5 py-3 text-sm font-semibold text-[#0b1460] disabled:opacity-60"
             >
               <RotateCcw className="h-4 w-4" />
               {busyId === primary._id ? "Adding…" : "Buy again"}
-            </button>
+            </Button>
           ) : null}
-          <Link to="/account/orders" className="rounded-xl bg-[#0b1460] px-5 py-3 text-sm font-semibold text-white">
+          <Link to="/account/orders" className={buttonClass()}>
             View orders
           </Link>
-          <Link to="/" className="rounded-xl border border-[#eceef4] px-5 py-3 text-sm font-semibold">
+          <Link to="/" className={buttonClass({ variant: "secondary" })}>
             Continue shopping
           </Link>
         </div>
@@ -166,7 +215,7 @@ function FulfillmentGroup({ title, icon: Icon, items }) {
   if (!items?.length) return null;
   return (
     <div>
-      <p className="flex items-center gap-2 text-[12px] font-bold uppercase tracking-[0.12em] text-msr-accent">
+      <p className="flex items-center gap-2 text-[12px] font-bold uppercase tracking-[0.12em] text-msr-primary">
         <Icon className="h-4 w-4" />
         {title}
       </p>
@@ -174,13 +223,13 @@ function FulfillmentGroup({ title, icon: Icon, items }) {
         {items.map((item) => (
           <li key={`${item.sku}-${item.variantId || item.pack}-${item.qty}`} className="flex justify-between gap-3 text-sm">
             <span>
-              <span className="font-medium text-[#1a1c3d]">{item.name}</span>
-              <span className="block text-[#8b8ea3]">
+              <span className="font-medium text-msr-ink">{item.name}</span>
+              <span className="block text-msr-subtle">
                 {item.attributes?.packSize || item.attributes?.size || item.sku} × {item.qty}
                 {item.easyReturn ? " · Easy return" : ""}
               </span>
             </span>
-            <span className="font-semibold">{inr(item.lineTotal)}</span>
+            <span className="font-semibold text-msr-ink">{inr(item.lineTotal)}</span>
           </li>
         ))}
       </ul>

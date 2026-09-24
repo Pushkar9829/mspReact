@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { api } from "../../shared/api.js";
 import { useApi } from "../../shared/hooks/useApi.js";
 import { PanelState } from "../../shared/components/PanelTable.jsx";
-import { FIELD } from "../../shared/components/PanelKit.jsx";
+import { FIELD, PanelTabs } from "../../shared/components/PanelKit.jsx";
 
 const DEFAULT_PARTNERS = [
   { id: "msp", name: "MS₹ Delivery", fee: 0, isDefault: true },
@@ -10,14 +10,9 @@ const DEFAULT_PARTNERS = [
   { id: "bluedart", name: "Blue Dart", fee: 55, isDefault: false },
 ];
 
-function settingValue(rows, key, fallback) {
-  const row = (rows || []).find((item) => item.key === key);
-  return row ? row.value : fallback;
-}
-
 export default function Settings() {
   const { data, error, loading, reload } = useApi(() => api.getMyTenant(), []);
-  const settings = useApi(() => api.listSettings(), []);
+  const settings = useApi(() => api.getCommerce(), []);
   const [form, setForm] = useState({
     name: "",
     legalName: "",
@@ -34,6 +29,20 @@ export default function Settings() {
     partnerChoice: true,
     partners: DEFAULT_PARTNERS,
   });
+  const [pickup, setPickup] = useState({
+    contactName: "",
+    phone: "",
+    addressLine1: "",
+    city: "",
+    state: "",
+    postalCode: "",
+    formatted: "",
+    latitude: null,
+    longitude: null,
+    placeId: "",
+  });
+  const [tab, setTab] = useState("store");
+  const [mapQuery, setMapQuery] = useState("");
   const [msg, setMsg] = useState("");
   const [busy, setBusy] = useState(false);
 
@@ -48,17 +57,36 @@ export default function Settings() {
       website: data.businessProfile?.website || "",
       minOrderValue: data.orderRules?.minOrderValue ?? "",
     });
+    const addr = data.pickupAddress || {};
+    setPickup({
+      contactName: addr.contactName || "",
+      phone: addr.phone || "",
+      addressLine1: addr.addressLine1 || "",
+      city: addr.city || "",
+      state: addr.state || "",
+      postalCode: addr.postalCode || "",
+      formatted: addr.formatted || "",
+      latitude: addr.latitude ?? null,
+      longitude: addr.longitude ?? null,
+      placeId: addr.placeId || "",
+    });
   }, [data]);
 
+  const pickupQuery = [pickup.addressLine1, pickup.city, pickup.state, pickup.postalCode].filter(Boolean).join(", ");
   useEffect(() => {
-    const rows = Array.isArray(settings.data) ? settings.data : [];
-    if (!rows.length && !settings.data) return;
-    const partners = settingValue(rows, "platform.deliveryPartners", DEFAULT_PARTNERS);
+    const timer = setTimeout(() => setMapQuery(pickupQuery), 350);
+    return () => clearTimeout(timer);
+  }, [pickupQuery]);
+
+  useEffect(() => {
+    const row = settings.data;
+    if (!row || Array.isArray(row)) return;
+    const partners = row.deliveryPartners;
     setCommerce({
-      feeEnabled: Boolean(settingValue(rows, "platform.feeEnabled", false)),
-      feeAmount: Number(settingValue(rows, "platform.feeAmount", 10)) || 0,
-      feePercent: Number(settingValue(rows, "platform.feePercent", 0)) || 0,
-      partnerChoice: Boolean(settingValue(rows, "platform.deliveryPartnerChoiceEnabled", true)),
+      feeEnabled: Boolean(row.feeEnabled),
+      feeAmount: Number(row.feeAmount) || 0,
+      feePercent: Number(row.feePercent) || 0,
+      partnerChoice: Boolean(row.deliveryPartnerChoiceEnabled),
       partners: Array.isArray(partners) && partners.length ? partners : DEFAULT_PARTNERS,
     });
   }, [settings.data]);
@@ -97,11 +125,22 @@ export default function Settings() {
   }
 
   return (
-    <div className="max-w-xl">
+    <div className={tab === "pickup" ? "max-w-4xl" : "max-w-xl"}>
       <h1 className="text-2xl font-extrabold">Settings</h1>
-      <p className="mt-1 text-sm text-msr-muted">Store profile, tax, and order rules.</p>
+      <p className="mt-1 text-sm text-msr-muted">Store profile, pickup address, and order fees.</p>
+      <PanelTabs
+        value={tab}
+        onChange={setTab}
+        tabs={[
+          { id: "store", label: "Store" },
+          { id: "pickup", label: "Pickup" },
+          { id: "fees", label: "Fees" },
+        ]}
+      />
+      {msg ? <p className="mt-3 text-sm text-msr-muted">{msg}</p> : null}
       <PanelState loading={loading} error={error}>
-        <form onSubmit={save} className="mt-5 space-y-4 rounded-2xl bg-white p-6 shadow-sm">
+        {tab === "store" ? (
+        <form onSubmit={save} className="mt-3 space-y-3 rounded-xl bg-white p-4 shadow-sm">
           <label className="block text-sm font-semibold">
             Store name
             <input value={form.name} onChange={(e) => setField("name", e.target.value)} className={`mt-1 font-normal ${FIELD}`} />
@@ -136,13 +175,93 @@ export default function Settings() {
               className={`mt-1 font-normal ${FIELD}`}
             />
           </label>
-          {msg ? <p className="text-sm text-msr-muted">{msg}</p> : null}
-          <button type="submit" disabled={busy} className="rounded-xl bg-msr-navy px-5 py-3 font-bold text-white disabled:opacity-60">
+          <button type="submit" disabled={busy} className="rounded-lg bg-msr-navy px-4 py-2 text-[13px] font-semibold text-white disabled:opacity-60">
             {busy ? "Saving…" : "Save changes"}
           </button>
         </form>
+        ) : null}
+        {tab === "pickup" ? (
         <form
-          className="mt-5 space-y-4 rounded-2xl bg-white p-6 shadow-sm"
+          className="mt-3 grid gap-3 lg:grid-cols-[minmax(0,20rem)_1fr]"
+          onSubmit={async (e) => {
+            e.preventDefault();
+            setBusy(true);
+            setMsg("");
+            try {
+              const saved = await api.updateMyTenant({ pickupAddress: pickup });
+              const addr = saved.pickupAddress || pickup;
+              setPickup((prev) => ({
+                ...prev,
+                formatted: addr.formatted || prev.formatted,
+                latitude: addr.latitude ?? prev.latitude,
+                longitude: addr.longitude ?? prev.longitude,
+                placeId: addr.placeId || prev.placeId,
+              }));
+              setMsg("Pickup address saved. Buyers see this pin when they choose store pickup.");
+              reload();
+            } catch (err) {
+              setMsg(err.message);
+            } finally {
+              setBusy(false);
+            }
+          }}
+        >
+          <div className="space-y-3 rounded-xl bg-white p-4 shadow-sm">
+            <h2 className="text-lg font-extrabold">Store pickup address</h2>
+            <p className="text-sm text-msr-muted">The pin on the right is what buyers see on Google Maps.</p>
+            {[
+              ["contactName", "Contact name"],
+              ["phone", "Phone"],
+              ["addressLine1", "Street address"],
+              ["city", "City"],
+              ["state", "State"],
+              ["postalCode", "PIN"],
+            ].map(([key, label]) => (
+              <label key={key} className="block text-sm font-semibold">
+                {label}
+                <input
+                  value={pickup[key]}
+                  onChange={(e) => setPickup((prev) => ({ ...prev, [key]: e.target.value }))}
+                  className={`mt-1 font-normal ${FIELD}`}
+                />
+              </label>
+            ))}
+            <button type="submit" disabled={busy} className="rounded-lg bg-msr-navy px-4 py-2 text-[13px] font-semibold text-white disabled:opacity-60">
+              {busy ? "Saving…" : "Save pickup address"}
+            </button>
+          </div>
+          <div className="overflow-hidden rounded-xl bg-white shadow-sm">
+            {mapQuery ? (
+              <>
+                <iframe
+                  title="Store pickup on Google Maps"
+                  className="h-80 w-full border-0"
+                  loading="lazy"
+                  src={`https://maps.google.com/maps?q=${encodeURIComponent(mapQuery)}&z=16&output=embed`}
+                />
+                <div className="flex items-center justify-between gap-3 px-3 py-2">
+                  <p className="text-[12px] text-msr-muted">{mapQuery}</p>
+                  <a
+                    className="shrink-0 text-[12px] font-semibold text-msr-purple"
+                    href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(mapQuery)}`}
+                    target="_blank"
+                    rel="noreferrer"
+                  >
+                    Open in Google Maps
+                  </a>
+                </div>
+              </>
+            ) : (
+              <div className="grid h-80 place-items-center px-6 text-center text-[13px] text-msr-muted">
+                Enter a street, city, or PIN. The store pin shows on Google Maps here.
+              </div>
+            )}
+          </div>
+        </form>
+        ) : null}
+        {tab === "fees" ? (
+        <form
+          className="mt-3 space-y-3 rounded-xl bg-white p-4 shadow-sm"
           onSubmit={async (e) => {
             e.preventDefault();
             setBusy(true);
@@ -165,6 +284,7 @@ export default function Settings() {
           }}
         >
           <h2 className="text-lg font-extrabold">Platform fee & delivery partners</h2>
+          {settings.error ? <p className="text-sm text-msr-danger">{settings.error}</p> : null}
           <p className="text-sm text-msr-muted">Shown on checkout and order confirmation. Partner choice is optional for the buyer.</p>
           <label className="flex items-center gap-2 text-sm font-semibold">
             <input
@@ -249,10 +369,11 @@ export default function Settings() {
               </div>
             ))}
           </div>
-          <button type="submit" disabled={busy} className="rounded-xl bg-msr-navy px-5 py-3 font-bold text-white disabled:opacity-60">
+          <button type="submit" disabled={busy || !settings.data} className="rounded-lg bg-msr-navy px-4 py-2 text-[13px] font-semibold text-white disabled:opacity-60">
             {busy ? "Saving…" : "Save fee & partners"}
           </button>
         </form>
+        ) : null}
       </PanelState>
     </div>
   );

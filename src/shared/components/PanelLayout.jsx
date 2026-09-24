@@ -20,20 +20,20 @@ export default function PanelLayout({
   }
 
   return (
-    <div className="flex h-dvh overflow-hidden bg-msr-bg">
-      <aside className={`hidden h-full w-64 shrink-0 flex-col text-white md:flex ${sidebarClass}`}>
-        <div className="shrink-0 px-5 py-5">
+    <div className="panel-shell flex h-dvh overflow-hidden bg-msr-bg text-[13px]">
+      <aside className={`hidden h-full w-56 shrink-0 flex-col text-white md:flex ${sidebarClass}`}>
+        <div className="shrink-0 px-4 py-4">
           <Logo light compact />
-          <p className="mt-1 text-[11px] uppercase tracking-widest text-white/50">{eyebrow}</p>
+          <p className="mt-1 text-[10px] uppercase tracking-widest text-white/50">{eyebrow}</p>
         </div>
-        <nav className="msr-pane min-h-0 flex-1 overflow-y-auto px-3">
+        <nav className="msr-pane min-h-0 flex-1 overflow-y-auto px-2">
           {links.map((l) => (
             <NavLink
               key={l.to}
               to={l.to}
               end={l.end}
               className={({ isActive }) =>
-                `mb-1 flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-semibold ${
+                `mb-0.5 flex items-center gap-2.5 rounded-lg px-2.5 py-1.5 text-[13px] font-semibold ${
                   isActive ? "bg-white/15 text-white" : "text-white/70 hover:bg-white/10 hover:text-white"
                 }`
               }
@@ -44,17 +44,17 @@ export default function PanelLayout({
           ))}
         </nav>
         <div className="shrink-0 p-4">
-          <Link to={homeTo} className="block rounded-xl px-3 py-2 text-sm text-white/70 hover:bg-white/10">
+          <Link to={homeTo} className="block rounded-lg px-2.5 py-1.5 text-[13px] text-white/70 hover:bg-white/10">
             {homeLabel}
           </Link>
         </div>
       </aside>
       <div className="flex min-h-0 min-w-0 flex-1 flex-col">
-        <header className="flex shrink-0 items-center justify-between gap-3 border-b border-msr-border bg-white px-4 py-3 md:px-6">
+        <header className="flex shrink-0 items-center justify-between gap-3 border-b border-msr-border bg-white px-4 py-2 md:px-5">
           <div className="md:hidden">
             <Logo compact />
           </div>
-          <p className="hidden text-sm text-msr-muted md:block">
+          <p className="hidden text-[13px] text-msr-muted md:block">
             {user?.name} · <span className="text-msr-text">{user?.email}</span>
           </p>
           <div className="flex max-w-[60vw] items-center gap-2 overflow-x-auto md:hidden">
@@ -64,11 +64,11 @@ export default function PanelLayout({
               </NavLink>
             ))}
           </div>
-          <button type="button" onClick={signOut} className="inline-flex items-center gap-1 text-sm text-msr-muted">
+          <button type="button" onClick={signOut} className="inline-flex items-center gap-1 text-[13px] text-msr-muted">
             <LogOut className="h-4 w-4" /> Sign out
           </button>
         </header>
-        <div className="msr-pane min-h-0 flex-1 overflow-y-auto p-4 md:p-6">
+        <div className="msr-pane min-h-0 flex-1 overflow-y-auto p-3 md:p-5 [&_h1]:text-lg [&_h1]:font-bold [&_h2]:text-base [&_h2]:font-bold [&_label]:text-[13px] [&_p]:text-[13px]">
           <Outlet />
         </div>
       </div>

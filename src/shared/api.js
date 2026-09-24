@@ -99,6 +99,10 @@ export const api = {
   publishProduct: (id) => request(`/api/v1/products/${encodeURIComponent(id)}/publish`, { method: "POST" }),
   archiveProduct: (id) => request(`/api/v1/products/${encodeURIComponent(id)}`, { method: "DELETE" }),
   listCategories: (query = {}) => request(`/api/v1/categories${qs(query)}`),
+  createCategory: (body) => request("/api/v1/categories", { method: "POST", body: JSON.stringify(body) }),
+  listBrands: () => request("/api/v1/brands"),
+  createBrand: (body) => request("/api/v1/brands", { method: "POST", body: JSON.stringify(body) }),
+  geocode: (body) => request("/api/v1/location/geocode", { method: "POST", body: JSON.stringify(body) }),
   getCart: () => request("/api/v1/cart"),
   addCartItem: (body) => request("/api/v1/cart/items", { method: "POST", body: JSON.stringify(body) }),
   updateCartItem: (id, qty) =>
@@ -134,10 +138,10 @@ export const api = {
   listOrders: (query = {}) => request(`/api/v1/orders${qs({ limit: 50, ...query })}`),
   getOrder: (id) => request(`/api/v1/orders/${encodeURIComponent(id)}`),
   reorder: (id) => request(`/api/v1/orders/${encodeURIComponent(id)}/reorder`, { method: "POST" }),
-  updateOrderStatus: (id, status, note) =>
+  updateOrderStatus: (id, status, extra = {}) =>
     request(`/api/v1/orders/${encodeURIComponent(id)}/status`, {
       method: "POST",
-      body: JSON.stringify({ status, note }),
+      body: JSON.stringify({ status, ...extra }),
     }),
   me: () => request("/api/v1/auth/me"),
   updateMe: (body) => request("/api/v1/auth/me", { method: "PATCH", body: JSON.stringify(body) }),
@@ -192,6 +196,7 @@ export const api = {
   updateCmsPage: (id, body) => request(`/api/v1/cms/admin/${encodeURIComponent(id)}`, { method: "PATCH", body: JSON.stringify(body) }),
   deleteCmsPage: (id) => request(`/api/v1/cms/admin/${encodeURIComponent(id)}`, { method: "DELETE" }),
   cmsTransition: (id, action) => request(`/api/v1/cms/admin/${encodeURIComponent(id)}/${action}`, { method: "POST" }),
+  createChat: (body) => request("/api/v1/chat", { method: "POST", body: JSON.stringify(body) }),
   listChats: (query = {}) => request(`/api/v1/chat${qs({ limit: 20, ...query })}`),
   getChat: (id) => request(`/api/v1/chat/${encodeURIComponent(id)}`),
   listChatMessages: (id) => request(`/api/v1/chat/${encodeURIComponent(id)}/messages`),
@@ -201,6 +206,7 @@ export const api = {
     request(`/api/v1/chat/${encodeURIComponent(id)}/assign`, { method: "POST", body: JSON.stringify({ assigneeId }) }),
   closeChat: (id) => request(`/api/v1/chat/${encodeURIComponent(id)}/close`, { method: "POST" }),
   listSettings: (query = {}) => request(`/api/v1/settings${qs(query)}`),
+  getCommerce: () => request("/api/v1/settings/commerce"),
   upsertSetting: (key, value) => request(`/api/v1/settings/${encodeURIComponent(key)}`, { method: "PUT", body: JSON.stringify({ value }) }),
   publicSettings: () => request("/api/v1/settings/public"),
   getLedger: () => request("/api/v1/ledger/me"),

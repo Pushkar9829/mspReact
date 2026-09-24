@@ -24,7 +24,9 @@ export default function Customers() {
           columns={[
             { key: "name", label: "Retailer", render: (row) => <span className="font-semibold">{row.name}</span> },
             { key: "email", label: "Email", render: (row) => row.email || "—" },
-            { key: "city", label: "City", render: (row) => row.city || "—" },
+            { key: "phone", label: "Mobile", render: (row) => row.phone || "—" },
+            { key: "address", label: "Address", render: (row) => row.address || row.city || "—" },
+            { key: "gstin", label: "GST", render: (row) => row.gstin || "—" },
             { key: "orders", label: "Orders" },
             { key: "spend", label: "Lifetime spend", render: (row) => inr(row.spend) },
             { key: "status", label: "Status", render: (row) => <StatusBadge value={row.status} /> },
