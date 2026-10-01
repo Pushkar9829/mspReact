@@ -96,6 +96,10 @@ export const api = {
   getStaffProduct: (id) => request(`/api/v1/products/${encodeURIComponent(id)}`),
   createProduct: (body) => request("/api/v1/products", { method: "POST", body: JSON.stringify(body) }),
   updateProduct: (id, body) => request(`/api/v1/products/${encodeURIComponent(id)}`, { method: "PATCH", body: JSON.stringify(body) }),
+  bulkUploadProducts: (items) =>
+    request("/api/v1/products/bulk-upload", { method: "POST", body: JSON.stringify({ items }) }),
+  updateVariant: (id, body) =>
+    request(`/api/v1/variants/${encodeURIComponent(id)}`, { method: "PATCH", body: JSON.stringify(body) }),
   publishProduct: (id) => request(`/api/v1/products/${encodeURIComponent(id)}/publish`, { method: "POST" }),
   archiveProduct: (id) => request(`/api/v1/products/${encodeURIComponent(id)}`, { method: "DELETE" }),
   listCategories: (query = {}) => request(`/api/v1/categories${qs(query)}`),
@@ -137,6 +141,7 @@ export const api = {
     }),
   listOrders: (query = {}) => request(`/api/v1/orders${qs({ limit: 50, ...query })}`),
   getOrder: (id) => request(`/api/v1/orders/${encodeURIComponent(id)}`),
+  getInvoice: (orderId) => request(`/api/v1/orders/${encodeURIComponent(orderId)}/invoice`),
   reorder: (id) => request(`/api/v1/orders/${encodeURIComponent(id)}/reorder`, { method: "POST" }),
   updateOrderStatus: (id, status, extra = {}) =>
     request(`/api/v1/orders/${encodeURIComponent(id)}/status`, {

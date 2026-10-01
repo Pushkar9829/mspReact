@@ -42,7 +42,8 @@
 
 html {
   scroll-behavior: smooth;
-  overflow-x: hidden;
+  /* clip, not hidden: hidden makes body a scroll container and breaks the sticky header */
+  overflow-x: clip;
   scrollbar-width: thin;
   scrollbar-color: #c5c9d6 transparent;
 }
@@ -64,7 +65,7 @@ html::-webkit-scrollbar-track {
 body {
   margin: 0;
   min-height: 100vh;
-  overflow-x: hidden;
+  overflow-x: clip;
   background: #f4f5f8;
   color: #0b1033;
   font-family: var(--font-sans);

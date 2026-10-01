@@ -89,13 +89,14 @@ function uniqueBrands(rows, live) {
   return [...seen.values()];
 }
 
-function filterRows(rows, { category, brand, q, deal, newLaunch, bestseller, maxPrice } = {}) {
+function filterRows(rows, { category, brand, q, deal, newLaunch, bestseller, maxPrice, bulkEligible } = {}) {
   return rows.filter((p) => {
     if (category && category !== "all" && p.category !== category) return false;
     if (brand && p.brand.toLowerCase() !== String(brand).toLowerCase()) return false;
     if (deal && !p.deal) return false;
     if (newLaunch && !p.newLaunch) return false;
     if (bestseller && !p.bestseller) return false;
+    if (bulkEligible && !p.bulkEligible) return false;
     if (maxPrice && p.price > maxPrice) return false;
     if (q) {
       const hay = `${p.name} ${p.brand} ${p.category}`.toLowerCase();

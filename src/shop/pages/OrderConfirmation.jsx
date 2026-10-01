@@ -2,7 +2,8 @@ import { useEffect, useState } from "react";
 import { Link, useLocation, useNavigate, useParams } from "react-router-dom";
 import { CheckCircle2, RotateCcw, Store, Truck } from "lucide-react";
 import { api } from "../../shared/api.js";
-import { formatDate, formatEta, inr } from "../../shared/lib/format.js";
+import { formatDate, formatEta, inr2, paymentLabel } from "../../shared/lib/format.js";
+import { INVOICEABLE } from "../../shared/components/OrderDetail.jsx";
 import { useAuth } from "../../shared/context/AuthContext.jsx";
 import { Button, buttonClass } from "../components/shopUi.jsx";
 
@@ -46,14 +47,6 @@ export default function OrderConfirmation() {
 
   const primary = orders[0];
   const addr = primary?.addressSnapshot;
-  const payLabel = {
-    upi: "UPI",
-    card: "Card",
-    netbanking: "Net banking",
-    cod: "Cash on delivery",
-    purchase_order: "Purchase order",
-    credit_terms: "Credit terms",
-  };
 
   if (loading) {
     return (
@@ -133,33 +126,58 @@ export default function OrderConfirmation() {
             ) : null}
 
             <dl className="mt-4 space-y-2 border-t border-msr-line pt-4 text-sm">
+              <div className="flex justify-between text-msr-muted">
+                <dt>Subtotal</dt>
+                <dd>{inr2(order.subtotal)}</dd>
+              </div>
+              {order.couponDiscount ? (
+                <div className="flex justify-between text-msr-success-ink">
+                  <dt>Coupon{order.couponCode ? ` (${order.couponCode})` : ""}</dt>
+                  <dd>−{inr2(order.couponDiscount)}</dd>
+                </div>
+              ) : null}
               {order.deliveryFee ? (
                 <div className="flex justify-between text-msr-muted">
                   <dt>Delivery</dt>
-                  <dd>{inr(order.deliveryFee)}</dd>
+                  <dd>{inr2(order.deliveryFee)}</dd>
+                </div>
+              ) : null}
+              {order.partnerFee ? (
+                <div className="flex justify-between text-msr-muted">
+                  <dt>{order.deliveryPartner?.name ? `${order.deliveryPartner.name} charge` : "Partner charge"}</dt>
+                  <dd>{inr2(order.partnerFee)}</dd>
                 </div>
               ) : null}
               {order.platformFee ? (
                 <div className="flex justify-between text-msr-muted">
                   <dt>Platform fee</dt>
-                  <dd>{inr(order.platformFee)}</dd>
-                </div>
-              ) : null}
-              {order.partnerFee || order.deliveryPartner?.name ? (
-                <div className="flex justify-between text-msr-muted">
-                  <dt>{order.deliveryPartner?.name ? `${order.deliveryPartner.name} charge` : "Partner charge"}</dt>
-                  <dd>{order.partnerFee ? inr(order.partnerFee) : "FREE"}</dd>
+                  <dd>{inr2(order.platformFee)}</dd>
                 </div>
               ) : null}
               <div className="flex justify-between text-base font-extrabold text-msr-ink">
                 <dt>Total</dt>
-                <dd>{inr(order.total)}</dd>
+                <dd>{inr2(order.total)}</dd>
+              </div>
+              <div className="flex justify-between text-[12px] text-msr-subtle">
+                <dt>GST included in prices</dt>
+                <dd>{inr2(order.tax)}</dd>
               </div>
             </dl>
             {order.paymentMethod ? (
-              <p className="mt-2 text-sm text-msr-muted">Paid via {payLabel[order.paymentMethod] || order.paymentMethod}</p>
+              <p className="mt-2 text-sm text-msr-muted">
+                Payment: {paymentLabel(order.paymentMethod)} ({order.paymentStatus || "unpaid"})
+                {order.poNumber ? ` · PO ${order.poNumber}` : ""}
+              </p>
             ) : null}
+            {order.buyerNotes ? <p className="mt-1 text-sm text-msr-muted">Notes: {order.buyerNotes}</p> : null}
             {order.etaFrom ? <p className="mt-1 text-sm text-msr-muted">ETA {formatEta(order.etaFrom, order.etaTo)}</p> : null}
+            {order._id && INVOICEABLE.includes(order.status) ? (
+              <Link to={`/invoice/${order._id}`} className="mt-2 inline-block text-sm font-semibold text-msr-primary underline">
+                View GST invoice{order.invoiceNumber ? ` (${order.invoiceNumber})` : ""}
+              </Link>
+            ) : order.status === "pending" ? (
+              <p className="mt-2 text-[12px] text-msr-subtle">Your GST invoice is issued once the seller confirms the order.</p>
+            ) : null}
           </article>
         ))}
 
@@ -221,15 +239,15 @@ function FulfillmentGroup({ title, icon: Icon, items }) {
       </p>
       <ul className="mt-2 space-y-3">
         {items.map((item) => (
-          <li key={`${item.sku}-${item.variantId || item.pack}-${item.qty}`} className="flex justify-between gap-3 text-sm">
+          <li key={`${item.sku}-${item.variantId || item.pack}-${item.bulk ? "bulk" : "unit"}-${item.qty}`} className="flex justify-between gap-3 text-sm">
             <span>
               <span className="font-medium text-msr-ink">{item.name}</span>
               <span className="block text-msr-subtle">
-                {item.attributes?.packSize || item.attributes?.size || item.sku} × {item.qty}
+                {item.attributes?.packSize || item.attributes?.size || item.sku} × {item.qty} @ {inr2(item.unitPrice)}
                 {item.easyReturn ? " · Easy return" : ""}
               </span>
             </span>
-            <span className="font-semibold text-msr-ink">{inr(item.lineTotal)}</span>
+            <span className="font-semibold text-msr-ink">{inr2(item.lineSubtotal ?? item.unitPrice * item.qty)}</span>
           </li>
         ))}
       </ul>

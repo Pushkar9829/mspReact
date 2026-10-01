@@ -1,9 +1,13 @@
-import { Link } from "react-router-dom";
+import { useEffect } from "react";
+import { Link, useLocation } from "react-router-dom";
 import { Check, ChevronRight, FileText, Package, Truck } from "lucide-react";
 import { useShopCatalog } from "../context/ShopCatalogContext.jsx";
 import { useDeliveryLocation } from "../context/LocationContext.jsx";
 import ProductCard, { PRODUCT_GRID } from "../components/ProductCard.jsx";
 import { SectionTitle } from "../components/shopUi.jsx";
+import { inr } from "../../shared/lib/format.js";
+import { useCart } from "../context/CartContext.jsx";
+import SlabTable, { bulkRulesText } from "../components/SlabTable.jsx";
 
 const WAREHOUSE =
   "https://images.unsplash.com/photo-1586528116311-ad8dd3c8310d?auto=format&fit=crop&w=1400&q=80";
@@ -17,9 +21,18 @@ const PERKS = [
 export default function BulkBuy() {
   const { products, filterProducts } = useShopCatalog();
   const { location, setLocation, locations } = useDeliveryLocation();
-  const featured = filterProducts({ bestseller: true });
-  const rest = products.filter((p) => !featured.some((f) => f.id === p.id));
+  const { findLine } = useCart();
+  const eligible = filterProducts({ bulkEligible: true });
+  const featured = eligible.filter((p) => p.bestseller);
+  const rest = eligible.filter((p) => !featured.some((f) => f.id === p.id));
   const list = [...featured, ...rest];
+  const { hash } = useLocation();
+
+  useEffect(() => {
+    if (!hash || !list.length) return;
+    const el = document.getElementById(hash.slice(1));
+    if (el) el.scrollIntoView({ behavior: "smooth", block: "start" });
+  }, [hash, list.length]);
 
   return (
     <div className="bg-msr-bg pb-12">
@@ -30,11 +43,12 @@ export default function BulkBuy() {
             <p className="text-[11px] font-bold uppercase tracking-[0.18em] text-msr-gold">Wholesale desk</p>
             <h1 className="mt-3 text-[2rem] font-extrabold tracking-tight md:text-[2.4rem]">Bulk buy for business</h1>
             <p className="mt-3 max-w-xl text-[15px] leading-relaxed text-white/70">
-              Landing rates, GST invoices, and dispatch from {locations.length} cities — built for kiranas, HORECA and
-              distributors.
+              Selected SKUs sold by the case pack. Buy more packs of a size to unlock a lower price per pack — the cart
+              applies the right slab automatically. Bulk lines sit separately from items you add one at a time elsewhere
+              in the shop.
             </p>
             <ul className="mt-6 grid gap-2 sm:grid-cols-2">
-              {["Wholesale pricing", "Bulk discounts", "GST invoices", "Reliable supply"].map((t) => (
+              {["Wholesale pricing slabs", "Max qty controls", "GST invoices", "PO checkout supported"].map((t) => (
                 <li key={t} className="flex items-center gap-2 text-[13px] text-white/90">
                   <span className="grid h-5 w-5 place-items-center rounded-full bg-msr-gold text-msr-navy">
                     <Check className="h-3 w-3" strokeWidth={2.4} />
@@ -70,9 +84,15 @@ export default function BulkBuy() {
                 href="#bulk-skus"
                 className="inline-flex h-12 items-center rounded-full border border-white/20 px-6 text-sm font-bold text-white hover:border-msr-gold hover:text-msr-gold"
               >
-                Browse case packs
+                Browse eligible SKUs
                 <ChevronRight className="ml-1 h-4 w-4" />
               </a>
+              <Link
+                to="/cart"
+                className="inline-flex h-12 items-center rounded-full border border-white/20 px-6 text-sm font-bold text-white hover:border-msr-gold hover:text-msr-gold"
+              >
+                Go to cart / checkout
+              </Link>
             </div>
           </div>
           <div className="relative min-h-[220px] overflow-hidden rounded-2xl md:min-h-[320px]">
@@ -106,16 +126,37 @@ export default function BulkBuy() {
 
         {list.length ? (
           <section id="bulk-skus" className="mt-10 scroll-mt-24">
-            <SectionTitle title="Popular case packs" to="/category/all" />
+            <SectionTitle title="Bulk-eligible case packs" subtitle={`${list.length} SKUs open for wholesale`} />
             <div className={PRODUCT_GRID}>
               {list.map((p) => (
-                <ProductCard key={p.id} product={p} />
+                <div
+                  key={p.id}
+                  id={`bulk-${p.id}`}
+                  className={`flex scroll-mt-36 flex-col rounded-2xl ${
+                    hash === `#bulk-${p.id}` ? "ring-2 ring-msr-gold ring-offset-2" : ""
+                  }`}
+                >
+                  <ProductCard product={p} bulk />
+                  <div className="-mt-1 rounded-b-2xl border border-t-0 border-msr-line bg-white px-3 pb-3 pt-2">
+                    <p className="text-[11px] text-msr-muted">{bulkRulesText(p)}</p>
+                    {p.slabs?.length ? (
+                      <SlabTable
+                        slabs={p.slabs}
+                        pack={p.weight}
+                        qty={findLine(p.id, p.weight, true)?.qty || 0}
+                        className="mt-2"
+                      />
+                    ) : (
+                      <p className="mt-1 text-[11px] text-msr-subtle">From {inr(p.price)}</p>
+                    )}
+                  </div>
+                </div>
               ))}
             </div>
           </section>
         ) : (
           <p className="mt-10 rounded-2xl border border-msr-line bg-white px-6 py-12 text-center text-sm text-msr-muted">
-            Case packs will show here once the floor is stocked.
+            No bulk-eligible products yet. Store admins can enable Bulk on Products or upload a CSV with max qty and slabs.
           </p>
         )}
       </div>

@@ -1,9 +1,10 @@
 import { useState } from "react";
 import { Link } from "react-router-dom";
-import { Heart, Loader2, Minus, Plus, ShoppingCart } from "lucide-react";
+import { Boxes, Heart, Loader2, Minus, Plus, ShoppingCart } from "lucide-react";
 import { discount } from "../data/catalog.js";
 import { useCart } from "../context/CartContext.jsx";
 import { Price, RatingPill, Skeleton } from "./shopUi.jsx";
+import { qtyRules, stepQty } from "../lib/qtyRules.js";
 
 export const PRODUCT_GRID =
   "grid grid-cols-2 gap-3 sm:gap-4 md:grid-cols-3 lg:grid-cols-4 2xl:grid-cols-5";
@@ -16,15 +17,25 @@ function formatReviews(n) {
   return v.toLocaleString("en-IN");
 }
 
-export default function ProductCard({ product }) {
-  const { add, items, setQty, isWished, toggleWish } = useCart();
+/** `bulk` cards (bulk screen only) add bulk lines with MOQ/slabs; elsewhere items are added one at a time. */
+export default function ProductCard({ product, bulk = false }) {
+  const { add, items, setQty, findLine, isWished, toggleWish } = useCart();
   const [busy, setBusy] = useState(false);
-  const inCart = items.find((item) => item.id === product.id && item.pack === product.weight);
+  const inCart = findLine(product.id, product.weight, bulk);
+  const otherMode = findLine(product.id, product.weight, !bulk)?.qty || 0;
   const off = discount(product);
   const wished = isWished(product.id);
   const isBestseller = Boolean(product.bestseller) || product.badge === "Best seller";
   const tag = isBestseller ? "Bestseller" : product.deal ? "Deal" : product.newLaunch ? "New" : "";
   const outOfStock = product.stock === 0;
+  const elsewhere = items
+    .filter((item) => item.bulk && item.id === product.id && item.pack !== product.weight)
+    .reduce((n, item) => n + item.qty, 0);
+  const stock = product.stock == null ? undefined : product.stock - otherMode;
+  const rules = qtyRules(product, { bulk, stock, inCartElsewhere: elsewhere });
+  const atMax = inCart ? inCart.qty >= rules.max : false;
+  const showBulkLink = !bulk && product.bulkEligible;
+  const cannotAdd = outOfStock || rules.max < rules.min;
 
   function stop(e) {
     e.preventDefault();
@@ -106,14 +117,15 @@ export default function ProductCard({ product }) {
         <Heart className={`h-4 w-4 ${wished ? "fill-current" : ""}`} strokeWidth={2} />
       </button>
 
-      <div className="relative z-10 px-3 pb-3 pt-3 sm:px-3.5 sm:pb-3.5">
+      <div className="relative z-10 flex gap-1.5 px-3 pb-3 pt-3 sm:px-3.5 sm:pb-3.5">
+        <div className="min-w-0 flex-1">
         {inCart ? (
           <div className="flex h-9 items-center justify-between overflow-hidden rounded-xl bg-msr-primary text-white">
             <button
               type="button"
               onClick={(e) => {
                 stop(e);
-                run(() => setQty(product.id, product.weight, inCart.qty - 1));
+                run(() => setQty(product.id, product.weight, stepQty(rules, inCart.qty, -1), bulk));
               }}
               className="grid h-full w-10 place-items-center transition-colors hover:bg-black/10"
               aria-label="Decrease quantity"
@@ -123,12 +135,14 @@ export default function ProductCard({ product }) {
             <span className="text-[13px] font-bold">{busy ? <Loader2 className="h-4 w-4 animate-spin" /> : inCart.qty}</span>
             <button
               type="button"
+              disabled={busy || atMax}
               onClick={(e) => {
                 stop(e);
-                run(() => setQty(product.id, product.weight, inCart.qty + 1));
+                run(() => setQty(product.id, product.weight, stepQty(rules, inCart.qty, 1), bulk));
               }}
-              className="grid h-full w-10 place-items-center transition-colors hover:bg-black/10"
+              className="grid h-full w-10 place-items-center transition-colors hover:bg-black/10 disabled:opacity-40"
               aria-label="Increase quantity"
+              title={atMax ? "Maximum quantity reached" : undefined}
             >
               <Plus className="h-4 w-4" />
             </button>
@@ -136,17 +150,30 @@ export default function ProductCard({ product }) {
         ) : (
           <button
             type="button"
-            disabled={outOfStock || busy}
+            disabled={cannotAdd || busy}
             onClick={(e) => {
               stop(e);
-              run(() => add(product, 1, product.weight));
+              run(() => add(product, rules.min, product.weight, undefined, { bulk }));
             }}
             className="inline-flex h-9 w-full items-center justify-center gap-1.5 rounded-xl border border-msr-primary bg-white text-[13px] font-semibold text-msr-primary transition-colors hover:bg-msr-primary hover:text-white disabled:border-msr-line disabled:text-msr-subtle disabled:hover:bg-white"
           >
             {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <ShoppingCart className="h-4 w-4" strokeWidth={2} />}
-            {outOfStock ? "Out of stock" : "Add to cart"}
+            {outOfStock ? "Out of stock" : bulk ? `Bulk add ${rules.min}` : showBulkLink ? "Add" : "Add to cart"}
           </button>
         )}
+        </div>
+        {showBulkLink ? (
+          <Link
+            to={`/bulk#bulk-${product.id}`}
+            onClick={(e) => e.stopPropagation()}
+            className="inline-flex h-9 shrink-0 items-center gap-1 rounded-xl border border-msr-gold bg-msr-gold/20 px-2.5 text-[12.5px] font-semibold text-msr-ink transition-colors hover:bg-msr-gold/40"
+            title="Buy in bulk with slab prices"
+            aria-label={`Buy ${product.name} in bulk`}
+          >
+            <Boxes className="h-4 w-4" strokeWidth={2} />
+            Bulk
+          </Link>
+        ) : null}
       </div>
     </article>
   );

@@ -30,7 +30,7 @@ export const NEXT_ORDER_STATUSES = {
   ready_to_ship: ["shipped", "cancelled"],
   shipped: ["out_for_delivery"],
   out_for_delivery: ["delivered"],
-  delivered: ["return_requested"],
+  delivered: ["return_requested", "refunded"],
   return_requested: ["refunded"],
 };
 

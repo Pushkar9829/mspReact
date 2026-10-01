@@ -17,6 +17,22 @@ export default function Catalog() {
   const [msg, setMsg] = useState("");
   const [busy, setBusy] = useState("");
 
+  async function setBulkEligible(row, bulkEligible) {
+    const id = rowId(row);
+    setBusy(id);
+    setMsg("");
+    try {
+      await api.updateProduct(id, {
+        wholesale: { ...(row.wholesale || {}), bulkEligible },
+      });
+      reload();
+    } catch (err) {
+      setMsg(err.message);
+    } finally {
+      setBusy("");
+    }
+  }
+
   async function setEnabled(row, enabled) {
     const id = rowId(row);
     setBusy(id);
@@ -70,7 +86,16 @@ export default function Catalog() {
             { key: "store", label: "Store", render: (row) => row.tenantId?.name || "—" },
             { key: "price", label: "Price", render: (row) => (row.sellingPrice != null ? inr(row.sellingPrice) : "—") },
             { key: "available", label: "Available", render: (row) => row.available ?? "—" },
-            { key: "limit", label: "Order limit", render: (row) => row.wholesale?.maxQty || "—" },
+            { key: "limit", label: "Max qty", render: (row) => row.wholesale?.maxQty || "—" },
+            {
+              key: "bulk",
+              label: "Bulk",
+              render: (row) => (
+                <ActionBtn disabled={busy === rowId(row)} onClick={() => setBulkEligible(row, !row.wholesale?.bulkEligible)}>
+                  {row.wholesale?.bulkEligible ? "On" : "Off"}
+                </ActionBtn>
+              ),
+            },
             {
               key: "status",
               label: "Status",

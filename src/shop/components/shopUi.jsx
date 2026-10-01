@@ -181,16 +181,32 @@ export function Breadcrumbs({ items = [] }) {
   );
 }
 
-export function QtyStepper({ value, onChange, size = "md", className = "" }) {
+export function QtyStepper({ value, onChange, size = "md", className = "", min = 1, max = Infinity, step = 1 }) {
   const box = size === "sm" ? "h-8 w-8 text-sm" : "h-10 w-10";
   const mid = size === "sm" ? "h-8 min-w-8 text-sm" : "h-10 min-w-10";
+  const stepN = Math.max(1, Number(step) || 1);
+  const minN = Math.max(1, Number(min) || 1);
+  const maxN = Number.isFinite(Number(max)) ? Number(max) : Infinity;
+  function bump(delta) {
+    const next = value + delta * stepN;
+    if (next < minN) {
+      onChange(0);
+      return;
+    }
+    onChange(Math.min(maxN, next));
+  }
   return (
     <div className={cx("inline-flex items-center overflow-hidden rounded-xl border border-msr-line bg-white", className)}>
-      <button type="button" className={cx(box, "text-msr-muted hover:bg-msr-bg")} onClick={() => onChange(Math.max(1, value - 1))}>
+      <button type="button" className={cx(box, "text-msr-muted hover:bg-msr-bg")} onClick={() => bump(-1)}>
         −
       </button>
       <span className={cx(mid, "grid place-items-center font-semibold")}>{value}</span>
-      <button type="button" className={cx(box, "text-msr-ink hover:bg-msr-bg")} onClick={() => onChange(value + 1)}>
+      <button
+        type="button"
+        className={cx(box, "text-msr-ink hover:bg-msr-bg")}
+        disabled={value + stepN > maxN}
+        onClick={() => bump(1)}
+      >
         +
       </button>
     </div>

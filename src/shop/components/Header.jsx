@@ -1,4 +1,4 @@
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Link } from "react-router-dom";
 import { ChevronDown, Heart, MapPin, ShoppingCart, UserRound } from "lucide-react";
 import { Logo } from "../../shared/components/ui.jsx";
@@ -18,6 +18,16 @@ export default function Header() {
   const { location, setLocation, open, setOpen, locations } = useDeliveryLocation();
   const { openAccount } = useAccountDrawer();
   const locRef = useRef(null);
+  const [scrolled, setScrolled] = useState(false);
+
+  useEffect(() => {
+    function onScroll() {
+      setScrolled(window.scrollY > 8);
+    }
+    onScroll();
+    window.addEventListener("scroll", onScroll, { passive: true });
+    return () => window.removeEventListener("scroll", onScroll);
+  }, []);
 
   useEffect(() => {
     if (!open) return undefined;
@@ -29,8 +39,8 @@ export default function Header() {
   }, [open, setOpen]);
 
   return (
-    <header className="sticky top-0 z-40">
-      <div className="bg-msr-ink text-white">
+    <header className={`sticky top-0 z-40 transition-shadow ${scrolled ? "shadow-[0_6px_20px_rgba(11,16,51,0.12)]" : ""}`}>
+      <div className="relative z-10 bg-msr-ink text-white">
         <div className="msr-gutter flex h-16 items-center gap-3 lg:gap-5">
           <Link to="/" className="shrink-0" aria-label="MS₹ home">
             <Logo light compact slogan={branding?.slogan} />

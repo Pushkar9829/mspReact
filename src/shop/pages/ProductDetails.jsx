@@ -3,6 +3,7 @@ import { Link, useNavigate, useParams } from "react-router-dom";
 import { discount } from "../data/catalog.js";
 import { inr } from "../../shared/lib/format.js";
 import { priceForPack, mapLookup } from "../lib/mapProduct.js";
+import { qtyRules, stepQty } from "../lib/qtyRules.js";
 import { Breadcrumbs, Button, SectionTitle, Skeleton, buttonClass, inputClass } from "../components/shopUi.jsx";
 import ProductRail from "../components/ProductRail.jsx";
 import { useCart } from "../context/CartContext.jsx";
@@ -43,7 +44,7 @@ export default function ProductDetails() {
   const cached = getProduct(id);
   const [fetched, setFetched] = useState(null);
   const product = fetched?.id === id ? fetched : cached;
-  const { add, isWished, toggleWish } = useCart();
+  const { add, isWished, toggleWish, items: cartItems } = useCart();
   const { user } = useAuth();
   const { location } = useDeliveryLocation();
   const navigate = useNavigate();
@@ -137,7 +138,6 @@ export default function ProductDetails() {
   const gallery = product.gallery?.length ? product.gallery : [product.image];
   const wished = isWished(product.id);
   const outOfStock = Number(product.stock) <= 0;
-  const orderLimit = product.orderLimit ? Number(product.orderLimit) : null;
   const stockLabel = outOfStock ? "Out of stock" : product.stock < 100 ? "Limited stock" : "In stock";
   const badges = [
     product.deal ? "Deal of the day" : null,
@@ -151,17 +151,30 @@ export default function ProductDetails() {
     : (product.packs || []).map((p) => ({ pack: p, ...priceForPack(product, p) }));
   const selectedUnits = packRows.reduce((n, row) => n + (packQty[row.pack] || 0), 0);
 
+  /** Regular (one-at-a-time) rules for one pack, capped by stock left after every cart line of that pack. */
+  function rowRules(row) {
+    const packStock = row?.stock != null ? Number(row.stock) : product.stock;
+    const inCart = cartItems
+      .filter((i) => i.id === product.id && i.pack === row?.pack)
+      .reduce((n, i) => n + i.qty, 0);
+    return qtyRules(product, { stock: packStock == null ? undefined : packStock - inCart });
+  }
+
   async function addCart() {
     setCartMsg("");
     try {
       const selected = packRows.filter((row) => (packQty[row.pack] || 0) > 0);
       if (!selected.length) {
-        await add(product, qty || 1, pack || product.weight, fulfillment);
+        const targetPack = pack || product.weight;
+        const rules = rowRules(packRows.find((row) => row.pack === targetPack));
+        if (rules.max < rules.min) throw new Error("No more stock left for this pack");
+        await add(product, Math.max(rules.min, qty || 1), targetPack, fulfillment);
         return;
       }
       for (const row of selected) {
         await add(product, packQty[row.pack], row.pack, fulfillment);
       }
+      setPackQty((prev) => Object.fromEntries(Object.keys(prev).map((k) => [k, 0])));
     } catch (err) {
       setCartMsg(err.message || "Could not add to cart");
       throw err;
@@ -248,10 +261,13 @@ export default function ProductDetails() {
               <span className="h-1.5 w-1.5 rounded-full bg-current" />
               {stockLabel}
             </span>
-            {orderLimit ? (
-              <span className="rounded-md bg-msr-primary-soft px-2 py-0.5 text-[12px] font-semibold text-msr-primary-ink">
-                Max {orderLimit} per order
-              </span>
+            {product.bulkEligible ? (
+              <Link
+                to="/bulk#bulk-skus"
+                className="rounded-md bg-msr-gold/30 px-2 py-0.5 text-[12px] font-semibold text-msr-ink hover:bg-msr-gold/50"
+              >
+                Also sold in bulk
+              </Link>
             ) : null}
           </div>
 
@@ -269,6 +285,18 @@ export default function ProductDetails() {
             </div>
             {saved > 0 ? <p className="mt-2 text-[13px] font-semibold text-msr-success">You save {inr(saved)} per unit</p> : null}
             <p className="mt-1.5 text-[12px] text-msr-subtle">Inclusive of all taxes · GST invoice on checkout · Price for {pack || product.weight}</p>
+
+            {product.bulkEligible ? (
+              <Link
+                to="/bulk#bulk-skus"
+                className="mt-4 flex items-center justify-between gap-3 rounded-xl border border-msr-gold/60 bg-msr-gold/10 px-3.5 py-2.5 text-[12.5px] text-msr-ink hover:bg-msr-gold/20"
+              >
+                <span>
+                  <span className="font-bold">Buying for business?</span> Get slab prices on case packs from the bulk screen.
+                </span>
+                <span className="shrink-0 font-semibold text-msr-primary">Bulk buy →</span>
+              </Link>
+            ) : null}
 
             {packRows.length ? (
               <div className="mt-5">
@@ -289,7 +317,8 @@ export default function ProductDetails() {
                     const margin = discount({ price: row.price, mrp: row.mrp });
                     const current = packQty[row.pack] || 0;
                     const packStock = row.stock != null ? Number(row.stock) : product.stock;
-                    const cap = Math.min(orderLimit || Infinity, packStock == null ? Infinity : packStock);
+                    const rules = rowRules(row);
+                    const atCap = stepQty(rules, current, 1) <= current;
                     const packOut = packStock != null && packStock <= 0;
                     const active = current > 0 || row.pack === pack;
                     return (
@@ -314,7 +343,9 @@ export default function ProductDetails() {
                               type="button"
                               className="grid h-full w-9 place-items-center text-msr-muted hover:bg-msr-surface disabled:opacity-40"
                               disabled={!current}
-                              onClick={() => setPackQty((prev) => ({ ...prev, [row.pack]: Math.max(0, (prev[row.pack] || 0) - 1) }))}
+                              onClick={() =>
+                                setPackQty((prev) => ({ ...prev, [row.pack]: stepQty(rules, prev[row.pack] || 0, -1) }))
+                              }
                               aria-label={`Decrease ${row.pack}`}
                             >
                               <Minus className="h-3.5 w-3.5" />
@@ -322,13 +353,12 @@ export default function ProductDetails() {
                             <span className="w-8 text-center text-[14px] font-bold">{current}</span>
                             <button
                               type="button"
-                              className="grid h-full w-9 place-items-center text-msr-primary hover:bg-msr-surface"
+                              className="grid h-full w-9 place-items-center text-msr-primary hover:bg-msr-surface disabled:opacity-40"
+                              disabled={atCap}
+                              title={atCap ? "Maximum quantity reached" : undefined}
                               onClick={() => {
                                 setPack(row.pack);
-                                setPackQty((prev) => ({
-                                  ...prev,
-                                  [row.pack]: Math.min(Number.isFinite(cap) ? cap : (prev[row.pack] || 0) + 1, (prev[row.pack] || 0) + 1),
-                                }));
+                                setPackQty((prev) => ({ ...prev, [row.pack]: stepQty(rules, prev[row.pack] || 0, 1) }));
                               }}
                               aria-label={`Increase ${row.pack}`}
                             >

@@ -36,6 +36,7 @@ export function mapApiProduct(doc) {
     mrp: v.listPrice,
     variantId: v._id,
     stock: v.available != null ? Number(v.available) : null,
+    tierPrices: Array.isArray(v.tierPrices) ? v.tierPrices : [],
   })).filter((row) => row.pack);
   const defaultPack = spec.defaultPack || packPrices[0]?.pack || "";
   const chosen = packPrices.find((row) => row.pack === defaultPack) || packPrices[0];
@@ -46,6 +47,7 @@ export function mapApiProduct(doc) {
     ? doc.deliveryModes
     : ["delivery_partner"];
   const categorySlug = doc.categoryId?.slug || "";
+  const wholesale = doc.wholesale || {};
   return {
     id: String(doc.sku || "").toLowerCase(),
     productId: doc._id,
@@ -65,8 +67,15 @@ export function mapApiProduct(doc) {
     stock: doc.available != null || variants.some((v) => v.available != null)
       ? Number(doc.available ?? variants.reduce((sum, v) => sum + (Number(v.available) || 0), 0))
       : 200,
-    orderLimit: doc.wholesale?.maxQty ?? doc.orderLimit ?? null,
-    moq: doc.wholesale?.moq || 1,
+    orderLimit: wholesale.maxQty ?? doc.orderLimit ?? null,
+    moq: wholesale.moq || 1,
+    packMultiple: wholesale.packMultiple || 1,
+    bulkEligible: Boolean(wholesale.bulkEligible),
+    slabs: !wholesale.bulkEligible
+      ? []
+      : chosen?.tierPrices?.length
+        ? chosen.tierPrices
+        : packPrices.find((row) => row.tierPrices?.length)?.tierPrices || [],
     description: doc.description || "",
     features: spec.features || [],
     ingredients: spec.ingredients || "",

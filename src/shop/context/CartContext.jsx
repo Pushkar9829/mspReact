@@ -15,25 +15,43 @@ function load(key, fallback) {
   }
 }
 
+function lineFromQuote(i) {
+  return {
+    id: i.slug || String(i.sku || "").toLowerCase(),
+    cartItemId: i.cartItemId,
+    variantId: i.variantId,
+    name: i.name,
+    image: i.image,
+    pack: i.pack || i.attributes?.packSize || i.attributes?.size || "",
+    qty: i.qty,
+    price: i.unitPrice ?? 0,
+    basePrice: i.baseUnitPrice ?? i.unitPrice ?? 0,
+    mrp: i.listPrice ?? i.unitPrice ?? 0,
+    lineSubtotal: i.lineSubtotal ?? (i.unitPrice || 0) * i.qty,
+    couponShare: i.couponShare || 0,
+    taxRate: i.taxRate || 0,
+    taxableValue: i.taxableValue ?? 0,
+    tax: i.tax ?? 0,
+    lineTotal: i.lineTotal ?? 0,
+    fulfillmentMode: i.fulfillmentMode || "delivery_partner",
+    easyReturn: Boolean(i.easyReturn),
+    wholesale: i.wholesale || {},
+    tierPrices: i.tierPrices || [],
+    moq: i.wholesale?.moq || 1,
+    orderLimit: i.wholesale?.maxQty ?? null,
+    packMultiple: i.wholesale?.packMultiple || 1,
+    bulk: Boolean(i.bulk),
+    bulkEligible: Boolean(i.bulk),
+    issue: i.issue || "",
+  };
+}
+
 function flattenQuote(quote) {
   if (!quote?.groups) return [];
-  return quote.groups.flatMap((g) =>
-    (g.items || []).map((i) => ({
-      id: i.slug || String(i.sku || "").toLowerCase(),
-      cartItemId: i.cartItemId,
-      variantId: i.variantId,
-      name: i.name,
-      image: i.image,
-      pack: i.pack || i.attributes?.packSize || i.attributes?.size || "",
-      qty: i.qty,
-      price: i.unitPrice,
-      mrp: i.listPrice,
-      tax: i.tax,
-      lineTotal: i.lineTotal,
-      fulfillmentMode: i.fulfillmentMode || "delivery_partner",
-      easyReturn: Boolean(i.easyReturn),
-    }))
-  );
+  return [
+    ...quote.groups.flatMap((g) => (g.items || []).map(lineFromQuote)),
+    ...(quote.unavailable || []).map(lineFromQuote),
+  ];
 }
 
 function wishId(entry) {
@@ -76,6 +94,8 @@ const emptyQuote = {
   deliveryPartners: [],
   deliveryPartnerChoiceEnabled: false,
   platformFeeEnabled: false,
+  hasBulk: false,
+  unavailable: [],
 };
 
 export function CartProvider({ children }) {
@@ -118,15 +138,30 @@ export function CartProvider({ children }) {
   }, [user?.token, refresh]);
 
   const value = useMemo(() => {
-    const count = live ? quote.itemCount || items.reduce((n, i) => n + i.qty, 0) : items.reduce((n, i) => n + i.qty, 0);
-    const mrp = items.reduce((n, i) => n + (i.mrp || i.price) * i.qty, 0);
-    const subtotal = live ? quote.subtotal : items.reduce((n, i) => n + i.price * i.qty, 0);
+    const buyable = items.filter((i) => !i.issue);
+    const count = items.reduce((n, i) => n + i.qty, 0);
+    const mrp = buyable.reduce((n, i) => n + (i.mrp || i.price) * i.qty, 0);
+    const subtotal = live ? quote.subtotal : buyable.reduce((n, i) => n + i.price * i.qty, 0);
     const discount = live ? quote.couponDiscount || 0 : 0;
-    const delivery = live ? quote.deliveryFee : subtotal >= 999 ? 0 : 40;
+    // The cart quote has no address, so the zone delivery fee is only known at checkout.
+    const delivery = live ? quote.deliveryFee || 0 : 0;
     const platformFee = live ? quote.platformFee || 0 : 0;
     const partnerFee = live ? quote.partnerFee || 0 : 0;
     const tax = live ? quote.tax : 0;
-    const total = live ? quote.grandTotal : subtotal + delivery;
+    const total = live ? quote.grandTotal : subtotal;
+
+    async function recover(err) {
+      setError(err.message || "Could not update cart");
+      if (live) {
+        try {
+          const next = await api.getCart();
+          setQuote(next || emptyQuote);
+          setItems(flattenQuote(next));
+        } catch {
+          /* keep the last good cart */
+        }
+      }
+    }
 
     return {
       items,
@@ -146,51 +181,65 @@ export function CartProvider({ children }) {
       tax,
       total,
       couponCode: quote.couponCode || "",
+      hasBulk: Boolean(quote.hasBulk) || items.some((i) => i.bulk),
+      /** Cart line for a product pack; bulk and regular lines of the same pack are separate. */
+      findLine: (id, pack, bulk = false) =>
+        items.find((i) => i.id === id && i.pack === pack && Boolean(i.bulk) === Boolean(bulk)),
+      hasIssues: items.some((i) => i.issue),
+      clearError: () => setError(""),
       refresh,
-      add: async (product, qty = 1, pack, fulfillmentMode) => {
+      add: async (product, qty = 1, pack, fulfillmentMode, { bulk = false } = {}) => {
         const packSize = pack || product.weight;
         try {
-          const looked = await api.lookupProduct(product.id, packSize);
+          let variantId = product.packPrices?.find((row) => row.pack === packSize)?.variantId;
+          if (!variantId) {
+            const looked = await api.lookupProduct(product.id, packSize);
+            variantId = looked.variant._id;
+          }
           const next = await api.addCartItem({
-            variantId: looked.variant._id,
+            variantId,
             qty,
             fulfillmentMode: fulfillmentMode || product.fulfillmentMode,
+            bulk: Boolean(bulk),
           });
           applyQuote(next);
         } catch (err) {
-          const message = err.message || "Could not add to cart";
-          setError(message);
+          setError(err.message || "Could not add to cart");
           throw err;
         }
       },
-      setQty: async (id, pack, qty) => {
-        const row = items.find((i) => i.id === id && i.pack === pack);
+      setQty: async (id, pack, qty, bulk = false) => {
+        const match = (i) => i.id === id && i.pack === pack && Boolean(i.bulk) === Boolean(bulk);
+        const row = items.find(match);
         if (live && row?.cartItemId) {
           try {
             if (qty < 1) applyQuote(await api.removeCartItem(row.cartItemId));
             else applyQuote(await api.updateCartItem(row.cartItemId, qty));
-            return;
           } catch (err) {
-            setError(err.message);
+            await recover(err);
+            throw err;
           }
+          return;
         }
         setItems((prev) =>
           prev
-            .map((i) => (i.id === id && i.pack === pack ? { ...i, qty } : i))
+            .map((i) => (match(i) ? { ...i, qty } : i))
             .filter((i) => i.qty > 0)
         );
       },
-      remove: async (id, pack) => {
-        const row = items.find((i) => i.id === id && i.pack === pack);
+      remove: async (id, pack, bulk = false) => {
+        const match = (i) => i.id === id && i.pack === pack && Boolean(i.bulk) === Boolean(bulk);
+        const row = items.find(match);
         if (live && row?.cartItemId) {
           try {
             applyQuote(await api.removeCartItem(row.cartItemId));
-            return;
           } catch (err) {
-            setError(err.message);
+            await recover(err);
+            throw err;
           }
+          return;
         }
-        setItems((prev) => prev.filter((i) => !(i.id === id && i.pack === pack)));
+        setItems((prev) => prev.filter((i) => !match(i)));
       },
       applyCoupon: async (code) => {
         const next = await api.applyCoupon(code);

@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { Link, useLocation, useNavigate } from "react-router-dom";
 
 import {
@@ -22,6 +22,7 @@ import { useCart } from "../context/CartContext.jsx";
 import { api } from "../../shared/api.js";
 import { inr } from "../../shared/lib/format.js";
 import { Button, EmptyState, buttonClass, inputClass } from "../components/shopUi.jsx";
+import { GstBreakup, SummaryRows } from "../components/OrderSummaryBreakdown.jsx";
 
 const PAYMENTS = [
   {
@@ -79,6 +80,7 @@ export default function Checkout() {
     couponCode,
     refresh,
     live,
+    hasBulk,
   } = useCart();
 
   const location = useLocation();
@@ -99,9 +101,14 @@ export default function Checkout() {
   const [draft, setDraft] = useState(EMPTY_DRAFT);
 
   const [preview, setPreview] = useState(null);
+  const [previewError, setPreviewError] = useState("");
+  const [previewLoading, setPreviewLoading] = useState(false);
+  const [previewNonce, setPreviewNonce] = useState(0);
   const [partnerId, setPartnerId] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
+  // One key per checkout so a double click or network retry can't create duplicate orders.
+  const idempotencyKey = useRef("");
 
   const selected = useMemo(
     () =>
@@ -169,10 +176,12 @@ export default function Checkout() {
   useEffect(() => {
     if (!addressId) {
       setPreview(null);
+      setPreviewError("");
       return undefined;
     }
 
     let cancelled = false;
+    setPreviewLoading(true);
 
     (async () => {
       try {
@@ -180,19 +189,27 @@ export default function Checkout() {
 
         if (!cancelled) {
           setPreview(next);
+          setPreviewError(
+            next.unavailable?.length
+              ? `${next.unavailable[0].name}: ${next.unavailable[0].issue}. Fix it in your cart to continue.`
+              : ""
+          );
           if (!partnerId && next.deliveryPartner?.id) setPartnerId(next.deliveryPartner.id);
         }
-      } catch {
+      } catch (err) {
         if (!cancelled) {
           setPreview(null);
+          setPreviewError(err.message || "Could not calculate your total for this address");
         }
+      } finally {
+        if (!cancelled) setPreviewLoading(false);
       }
     })();
 
     return () => {
       cancelled = true;
     };
-  }, [addressId, partnerId]);
+  }, [addressId, partnerId, previewNonce, subtotal]);
 
   const totals = preview || {
     subtotal,
@@ -208,6 +225,7 @@ export default function Checkout() {
   const hasDelivery = items.some((item) => item.fulfillmentMode !== "store_pickup");
 
   const payable = totals.grandTotal || 0;
+  const canPlace = live && Boolean(addressId) && Boolean(preview) && !previewError && !previewLoading && !busy;
 
   /* -------------------------------------------------------
      EMPTY CART
@@ -271,6 +289,10 @@ export default function Checkout() {
       setError("Please select a delivery address.");
       return;
     }
+    if (!preview || previewError) {
+      setError(previewError || "Your total is still being calculated.");
+      return;
+    }
 
     if (
       pay === "purchase_order" &&
@@ -284,9 +306,9 @@ export default function Checkout() {
     setError("");
 
     try {
-      const key = `chk-${Date.now()}-${Math.random()
-        .toString(36)
-        .slice(2, 8)}`;
+      if (!idempotencyKey.current) {
+        idempotencyKey.current = `chk-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
+      }
 
       const result = await api.checkout(
         {
@@ -294,29 +316,32 @@ export default function Checkout() {
           paymentMethod: pay,
           poNumber:
             pay === "purchase_order"
-              ? poNumber
+              ? poNumber.trim()
               : "",
           buyerNotes: notes,
           deliveryPartnerId: partnerId || undefined,
+          expectedGrandTotal: preview.grandTotal,
         },
-        key
+        idempotencyKey.current
       );
 
-      const orders = result.orders || [];
+      const orders = result?.orders || [];
       const first = orders[0];
+      if (!first) {
+        setError("The order could not be confirmed. Check your orders page before trying again.");
+        return;
+      }
 
-      await refresh();
-
-      navigate(
-        `/order/${first?._id || first?.orderNumber}`,
-        {
-          state: { orders },
-        }
-      );
+      navigate(`/order/${first._id || first.orderNumber}`, { state: { orders } });
+      refresh();
     } catch (err) {
       setError(
         err.message || "Could not place order"
       );
+      if (err.code === "PRICE_CHANGED" || err.status === 409) {
+        setPreviewNonce((n) => n + 1);
+        refresh();
+      }
     } finally {
       setBusy(false);
     }
@@ -636,12 +661,25 @@ export default function Checkout() {
               <SectionHeader
                 number="02"
                 title="Payment method"
-                description="Choose how you'd like to pay"
+                description={hasBulk ? "Bulk cart detected — purchase order is suggested for business orders" : "Choose how you'd like to pay"}
                 icon={CreditCard}
               />
 
               <div className="p-4 sm:p-5">
-
+                {hasBulk ? (
+                  <div className="mb-3 flex flex-wrap items-center justify-between gap-2 rounded-xl border border-msr-gold/40 bg-msr-gold/15 px-3 py-2 text-[13px] text-msr-ink">
+                    <span>This cart has bulk items. A purchase order is suggested for business orders.</span>
+                    {pay !== "purchase_order" ? (
+                      <button
+                        type="button"
+                        onClick={() => setPay("purchase_order")}
+                        className="text-[12px] font-bold text-msr-primary hover:underline"
+                      >
+                        Use purchase order
+                      </button>
+                    ) : null}
+                  </div>
+                ) : null}
                 <div className="grid gap-2.5 sm:grid-cols-2">
                   {PAYMENTS.map((payment) => {
                     const Icon = payment.icon;
@@ -883,53 +921,24 @@ export default function Checkout() {
 
               <div className="border-t border-msr-line px-4 py-4 sm:px-5">
 
-                <dl className="space-y-3">
-                  <SummaryRow
-                    label="Item total"
-                    value={inr(totals.subtotal)}
-                  />
-
-                  {totals.couponDiscount ? (
-                    <SummaryRow
-                      label="Coupon discount"
-                      value={`− ${inr(
-                        totals.couponDiscount
-                      )}`}
-                      success
-                    />
-                  ) : null}
-
-                  <SummaryRow
-                    label="Delivery"
-                    value={
-                      totals.deliveryFee
+                <SummaryRows
+                  items={items}
+                  couponCode={couponCode}
+                  couponDiscount={totals.couponDiscount}
+                  delivery={
+                    !preview
+                      ? "Select address"
+                      : totals.deliveryFee
                         ? inr(totals.deliveryFee)
-                        : "FREE"
-                    }
-                    success={!totals.deliveryFee}
-                  />
-
-                  {totals.platformFee ? (
-                    <SummaryRow
-                      label="Platform fee"
-                      value={inr(totals.platformFee)}
-                    />
-                  ) : null}
-
-                  {totals.partnerFee ? (
-                    <SummaryRow
-                      label={preview?.deliveryPartner?.name ? `${preview.deliveryPartner.name} charge` : "Partner charge"}
-                      value={inr(totals.partnerFee)}
-                    />
-                  ) : null}
-
-                  {totals.tax ? (
-                    <SummaryRow
-                      label="GST"
-                      value={inr(totals.tax)}
-                    />
-                  ) : null}
-                </dl>
+                        : preview.hasDelivery === false
+                          ? "Store pickup"
+                          : "FREE"
+                  }
+                  deliveryTone={!preview ? "muted" : totals.deliveryFee ? "default" : "success"}
+                  platformFee={totals.platformFee}
+                  partnerFee={totals.partnerFee}
+                  partnerLabel={preview?.deliveryPartner?.name ? `${preview.deliveryPartner.name} charge` : "Partner charge"}
+                />
 
                 <div className="my-4 border-t border-dashed border-msr-line-strong" />
 
@@ -940,7 +949,7 @@ export default function Checkout() {
                     </p>
 
                     <p className="mt-1 text-[10px] text-msr-subtle">
-                      Inclusive of applicable taxes
+                      Prices include GST
                     </p>
                   </div>
 
@@ -949,9 +958,14 @@ export default function Checkout() {
                   </p>
                 </div>
 
+                <GstBreakup items={items} className="mt-3" />
+
                 {/* CTA */}
 
-                <Button size="lg" block className="mt-5" disabled={busy || !addressId || !live} onClick={placeOrder}>
+                {previewError ? (
+                  <p className="mt-4 rounded-lg bg-msr-danger-soft px-3 py-2 text-[12px] text-msr-danger">{previewError}</p>
+                ) : null}
+                <Button size="lg" block className="mt-5" disabled={!canPlace} onClick={placeOrder}>
                   {busy ? (
                     <>
                       <span className="h-4 w-4 animate-spin rounded-full border-2 border-white/30 border-t-white" />
@@ -1008,7 +1022,7 @@ export default function Checkout() {
 
           <button
             type="button"
-            disabled={busy || !addressId || !live}
+            disabled={!canPlace}
             onClick={placeOrder}
             className="
               flex
@@ -1100,44 +1114,14 @@ function CheckoutItem({ item }) {
 
         <p className="mt-0.5 text-[10px] text-msr-subtle">
           {item.pack} × {item.qty}
+          {item.bulk ? <span className="ml-1 font-semibold text-msr-ink">· Bulk</span> : null}
         </p>
       </div>
 
       <p className="shrink-0 text-[12px] font-extrabold text-msr-ink">
-        {inr(
-          item.lineTotal ||
-            item.price * item.qty
-        )}
+        {inr(item.lineSubtotal || item.price * item.qty)}
       </p>
     </li>
-  );
-}
-
-/* ============================================================
-   SUMMARY ROW
-============================================================ */
-
-function SummaryRow({
-  label,
-  value,
-  success = false,
-}) {
-  return (
-    <div className="flex items-center justify-between gap-4 text-[13px]">
-      <dt className="text-msr-muted">
-        {label}
-      </dt>
-
-      <dd
-        className={
-          success
-            ? "font-bold text-msr-success"
-            : "font-semibold text-msr-ink"
-        }
-      >
-        {value}
-      </dd>
-    </div>
   );
 }
 

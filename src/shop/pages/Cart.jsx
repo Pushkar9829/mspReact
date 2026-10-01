@@ -9,7 +9,6 @@ import {
   ShoppingBag,
   Tag,
   Trash2,
-  Truck,
   ArrowRight,
   Plus,
   X,
@@ -21,8 +20,9 @@ import { getProduct } from "../data/catalog.js";
 import { api } from "../../shared/api.js";
 import { inr } from "../../shared/lib/format.js";
 import { Button, EmptyState, QtyStepper, buttonClass, inputClass } from "../components/shopUi.jsx";
-
-const FREE_DELIVERY_AT = 999;
+import { qtyRules } from "../lib/qtyRules.js";
+import { SlabStrip, bulkRulesText, nextSlab } from "../components/SlabTable.jsx";
+import { GstBreakup, SummaryRows } from "../components/OrderSummaryBreakdown.jsx";
 
 const EMPTY_DRAFT = {
   label: "Shop",
@@ -50,9 +50,24 @@ export default function Cart() {
     couponCode,
     applyCoupon,
     error,
+    clearError,
+    hasIssues,
     live,
     refresh,
   } = useCart();
+  const [busyLine, setBusyLine] = useState("");
+
+  async function lineAction(key, fn) {
+    if (busyLine) return;
+    setBusyLine(key);
+    try {
+      await fn();
+    } catch {
+      /* error is shown in the banner and the cart is re-synced */
+    } finally {
+      setBusyLine("");
+    }
+  }
 
   const { user } = useAuth();
   const navigate = useNavigate();
@@ -134,7 +149,13 @@ export default function Cart() {
   ------------------------------------------------------- */
 
   useEffect(() => {
-    if (!items.length) return undefined;
+    if (user?.token || !live || !couponCode) return;
+    applyCoupon("").catch(() => {});
+  }, [user?.token, live, couponCode]);
+
+  useEffect(() => {
+    // Guests can't see or remove coupons, so never apply one silently for them.
+    if (!items.length || !user?.token) return undefined;
 
     let cancelled = false;
 
@@ -325,8 +346,8 @@ export default function Cart() {
       : "";
   const productSavings = Math.max(0, mrp - subtotal);
   const totalSavings = productSavings + (discount || 0);
-  const freeLeft = !live && delivery > 0 && subtotal < FREE_DELIVERY_AT ? FREE_DELIVERY_AT - subtotal : 0;
   const unitCount = items.reduce((n, i) => n + i.qty, 0);
+  const productCount = new Set(items.map((i) => i.id)).size;
 
   return (
     <div className="msr-gutter py-6 md:py-8">
@@ -334,7 +355,8 @@ export default function Cart() {
         <div>
           <h1 className="text-2xl font-extrabold tracking-tight text-msr-ink">Shopping cart</h1>
           <p className="mt-1 text-sm text-msr-muted">
-            {items.length} {items.length === 1 ? "product" : "products"} · {unitCount} {unitCount === 1 ? "unit" : "units"}
+            {productCount} {productCount === 1 ? "product" : "products"}
+            {items.length > productCount ? ` in ${items.length} pack sizes` : ""} · {unitCount} {unitCount === 1 ? "pack" : "packs"}
           </p>
         </div>
         <Link to="/category/all" className="inline-flex items-center gap-1.5 text-[13px] font-semibold text-msr-primary hover:underline">
@@ -343,43 +365,41 @@ export default function Cart() {
         </Link>
       </div>
 
-      {error && !live ? (
+      {error ? (
         <div className="mb-4 flex flex-wrap items-center justify-between gap-3 rounded-xl border border-msr-danger/20 bg-msr-danger-soft px-4 py-3 text-sm text-msr-danger">
           <span>{error}</span>
-          <button type="button" onClick={() => refresh()} className="font-bold text-msr-ink hover:underline">
-            Retry
-          </button>
+          {live ? (
+            <button type="button" onClick={() => clearError()} className="font-bold text-msr-ink hover:underline">
+              Dismiss
+            </button>
+          ) : (
+            <button type="button" onClick={() => refresh()} className="font-bold text-msr-ink hover:underline">
+              Retry
+            </button>
+          )}
+        </div>
+      ) : null}
+
+      {hasIssues ? (
+        <div className="mb-4 rounded-xl border border-msr-warning/30 bg-msr-warning-soft px-4 py-3 text-sm text-msr-warning-ink">
+          Some items can't be ordered right now. Update or remove them to continue to checkout.
         </div>
       ) : null}
 
       <div className="grid items-start gap-5 lg:grid-cols-[minmax(0,1fr)_380px]">
         <section className="min-w-0 space-y-4">
-          {freeLeft > 0 ? (
-            <div className="rounded-2xl border border-msr-line bg-white px-4 py-3.5">
-              <p className="flex items-center gap-2 text-[13px] text-msr-ink">
-                <Truck className="h-4 w-4 text-msr-primary" />
-                Add <span className="font-bold">{inr(freeLeft)}</span> more for <span className="font-bold text-msr-success">FREE delivery</span>
-              </p>
-              <div className="mt-2.5 h-1.5 overflow-hidden rounded-full bg-msr-surface">
-                <div className="h-full rounded-full bg-msr-primary transition-all" style={{ width: `${Math.min(100, (subtotal / FREE_DELIVERY_AT) * 100)}%` }} />
-              </div>
-            </div>
-          ) : delivery === 0 ? (
-            <div className="flex items-center gap-2 rounded-2xl border border-msr-success/20 bg-msr-success-soft px-4 py-3 text-[13px] font-semibold text-msr-success-ink">
-              <Check className="h-4 w-4" />
-              Yay! Your order qualifies for FREE delivery
-            </div>
-          ) : null}
-
           <div className="overflow-hidden rounded-2xl border border-msr-line bg-white">
             <ul className="divide-y divide-msr-line">
               {items.map((item) => {
                 const product = getProduct(item.id);
+                const lineKey = (item.cartItemId || item.id) + item.pack + (item.bulk ? ":bulk" : "");
+                const rules = qtyRules(item);
                 const lineMrp = (item.mrp || item.price) * item.qty;
-                const lineTotal = item.lineTotal || item.price * item.qty;
+                const lineAmount = item.lineSubtotal || item.price * item.qty;
                 const lineOff = item.mrp && item.mrp > item.price ? Math.round(((item.mrp - item.price) / item.mrp) * 100) : 0;
+                const lineBusy = busyLine === lineKey;
                 return (
-                  <li key={(item.cartItemId || item.id) + item.pack} className="group p-4 sm:p-5">
+                  <li key={lineKey} className={`group p-4 sm:p-5 ${item.issue ? "bg-msr-danger-soft/40" : ""}`}>
                     <div className="flex gap-4">
                       <Link
                         to={`/product/${item.id}`}
@@ -413,6 +433,11 @@ export default function Cart() {
                                   {item.pack}
                                 </span>
                               ) : null}
+                              {item.bulk ? (
+                                <span className="rounded-md bg-msr-gold/30 px-1.5 py-0.5 text-[11px] font-semibold text-msr-ink">
+                                  Bulk
+                                </span>
+                              ) : null}
                               {item.fulfillmentMode === "store_pickup" ? (
                                 <span className="rounded-md bg-msr-primary-soft px-1.5 py-0.5 text-[11px] font-semibold text-msr-primary-ink">
                                   Store pickup
@@ -427,27 +452,55 @@ export default function Cart() {
                           </div>
                           <button
                             type="button"
-                            onClick={() => remove(item.id, item.pack)}
-                            className="grid h-8 w-8 shrink-0 place-items-center rounded-lg text-msr-subtle transition hover:bg-msr-danger-soft hover:text-msr-danger"
+                            onClick={() => lineAction(lineKey, () => remove(item.id, item.pack, item.bulk))}
+                            disabled={Boolean(busyLine)}
+                            className="grid h-8 w-8 shrink-0 place-items-center rounded-lg text-msr-subtle transition hover:bg-msr-danger-soft hover:text-msr-danger disabled:opacity-40"
                             aria-label={`Remove ${item.name}`}
                           >
                             <Trash2 className="h-4 w-4" />
                           </button>
                         </div>
 
-                        <div className="mt-auto flex flex-wrap items-end justify-between gap-3 pt-3">
-                          <QtyStepper value={item.qty} onChange={(q) => setQty(item.id, item.pack, q)} size="sm" />
-                          <div className="text-right">
-                            <p className="flex items-baseline justify-end gap-2">
-                              {lineOff ? <span className="text-[12px] text-msr-subtle line-through">{inr(lineMrp)}</span> : null}
-                              <span className="text-[16px] font-extrabold text-msr-ink">{inr(lineTotal)}</span>
+                        {item.issue ? (
+                          <div className="mt-auto flex flex-wrap items-center justify-between gap-3 pt-3">
+                            <p className="text-[12.5px] font-semibold text-msr-danger">
+                              {item.issue} · {item.qty} in cart
                             </p>
-                            <p className="mt-0.5 text-[11px] text-msr-subtle">
-                              {inr(item.price)} each
-                              {lineOff ? <span className="ml-1.5 font-semibold text-msr-success">{lineOff}% off</span> : null}
-                            </p>
+                            <Button
+                              size="sm"
+                              variant="secondary"
+                              disabled={Boolean(busyLine)}
+                              onClick={() => lineAction(lineKey, () => remove(item.id, item.pack, item.bulk))}
+                            >
+                              Remove
+                            </Button>
                           </div>
-                        </div>
+                        ) : (
+                          <div className="mt-auto flex flex-wrap items-end justify-between gap-3 pt-3">
+                            <div className={lineBusy || (busyLine && !lineBusy) ? "pointer-events-none opacity-60" : ""}>
+                              <QtyStepper
+                                value={item.qty}
+                                onChange={(q) => lineAction(lineKey, () => setQty(item.id, item.pack, q, item.bulk))}
+                                size="sm"
+                                min={rules.min}
+                                max={rules.max}
+                                step={rules.step}
+                              />
+                            </div>
+                            <div className="text-right">
+                              <p className="flex items-baseline justify-end gap-2">
+                                {lineOff ? <span className="text-[12px] text-msr-subtle line-through">{inr(lineMrp)}</span> : null}
+                                <span className="text-[16px] font-extrabold text-msr-ink">{inr(lineAmount)}</span>
+                              </p>
+                              <p className="mt-0.5 text-[11px] text-msr-subtle">
+                                {inr(item.price)} each
+                                {item.taxRate ? ` · incl. ${item.taxRate}% GST` : ""}
+                                {lineOff ? <span className="ml-1.5 font-semibold text-msr-success">{lineOff}% off</span> : null}
+                              </p>
+                            </div>
+                          </div>
+                        )}
+                        {!item.issue && rules.bulk ? <BulkLineNote item={item} /> : null}
                       </div>
                     </div>
                   </li>
@@ -667,38 +720,41 @@ export default function Cart() {
           <div className="overflow-hidden rounded-2xl border border-msr-line bg-white">
             <div className="p-5">
               <h2 className="text-[15px] font-bold text-msr-ink">Order summary</h2>
-              <dl className="mt-4 space-y-2.5">
-                <SummaryRow label={`Price (${unitCount} ${unitCount === 1 ? "item" : "items"})`} value={inr(mrp || subtotal)} />
-                {productSavings ? <SummaryRow label="Product discount" value={`− ${inr(productSavings)}`} success /> : null}
-                <SummaryRow
-                  label={couponCode && discount ? `Coupon (${couponCode})` : "Coupon discount"}
-                  value={discount ? `− ${inr(discount)}` : "—"}
-                  success={Boolean(discount)}
+              <div className="mt-4">
+                <SummaryRows
+                  items={items}
+                  couponCode={couponCode}
+                  couponDiscount={discount}
+                  delivery={delivery ? inr(delivery) : "Calculated at checkout"}
+                  deliveryTone={delivery ? "default" : "muted"}
+                  platformFee={platformFee}
+                  partnerFee={partnerFee}
                 />
-                <SummaryRow label="Delivery" value={delivery ? inr(delivery) : "FREE"} success={!delivery} />
-                {platformFee ? <SummaryRow label="Platform fee" value={inr(platformFee)} /> : null}
-                {partnerFee ? <SummaryRow label="Partner charge" value={inr(partnerFee)} /> : null}
-                {tax ? <SummaryRow label="GST" value={inr(tax)} /> : null}
-              </dl>
+              </div>
 
               <div className="my-4 border-t border-dashed border-msr-line-strong" />
 
               <div className="flex items-end justify-between gap-3">
                 <div>
                   <p className="text-[14px] font-bold text-msr-ink">Total amount</p>
-                  <p className="mt-0.5 text-[11px] text-msr-subtle">Inclusive of applicable taxes</p>
+                  <p className="mt-0.5 text-[11px] text-msr-subtle">
+                    Includes {tax ? `${inr(tax)} ` : ""}GST · delivery added at checkout
+                  </p>
                 </div>
                 <p className="text-[22px] font-extrabold tracking-tight text-msr-ink">{inr(total)}</p>
               </div>
 
+              {live ? <GstBreakup items={items} className="mt-3" /> : null}
+
               {totalSavings > 0 ? (
                 <p className="mt-3 rounded-lg bg-msr-success-soft px-3 py-2 text-center text-[12.5px] font-semibold text-msr-success-ink">
-                  You will save {inr(totalSavings)} on this order
+                  You save {inr(totalSavings)} vs MRP {inr(mrp)}
+                  {discount ? ` (incl. ${inr(discount)} coupon)` : ""}
                 </p>
               ) : null}
 
-              <Button size="lg" block className="mt-4" onClick={goCheckout} disabled={!live}>
-                {!live ? "Waiting for cart sync" : user ? "Proceed to checkout" : "Sign in to checkout"}
+              <Button size="lg" block className="mt-4" onClick={goCheckout} disabled={!live || hasIssues || Boolean(busyLine)}>
+                {!live ? "Waiting for cart sync" : hasIssues ? "Fix cart items to continue" : user ? "Proceed to checkout" : "Sign in to checkout"}
                 <ArrowRight className="h-4 w-4" />
               </Button>
 
@@ -738,11 +794,19 @@ function Panel({ icon: Icon, iconTone = "primary", title, action, children }) {
   );
 }
 
-function SummaryRow({ label, value, success = false }) {
+function BulkLineNote({ item }) {
+  const next = nextSlab(item.tierPrices, item.qty);
   return (
-    <div className="flex items-center justify-between gap-4 text-[13px]">
-      <dt className="min-w-0 text-msr-muted">{label}</dt>
-      <dd className={success ? "shrink-0 font-semibold text-msr-success" : "shrink-0 font-semibold text-msr-ink"}>{value}</dd>
+    <div className="mt-3 border-t border-dashed border-msr-line pt-3">
+      <SlabStrip slabs={item.tierPrices} qty={item.qty} pack={item.pack} />
+      <p className="mt-2 text-[11px] leading-4 text-msr-muted">
+        {bulkRulesText(item)}
+        {next ? (
+          <span className="ml-1 font-semibold text-msr-primary-ink">
+            · Add {next.minQty - item.qty} more for {inr(next.unitPrice)} each
+          </span>
+        ) : null}
+      </p>
     </div>
   );
 }
