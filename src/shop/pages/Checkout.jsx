@@ -21,7 +21,9 @@ import {
 import { useCart } from "../context/CartContext.jsx";
 import { api } from "../../shared/api.js";
 import { inr } from "../../shared/lib/format.js";
-import { Button, EmptyState, buttonClass, inputClass } from "../components/shopUi.jsx";
+import { Button, EmptyState, QtyInput, buttonClass, inputClass } from "../components/shopUi.jsx";
+import { bulkRulesText, nextSlab, slabRange } from "../components/SlabTable.jsx";
+import { qtyRules } from "../lib/qtyRules.js";
 import { GstBreakup, SummaryRows } from "../components/OrderSummaryBreakdown.jsx";
 
 const PAYMENTS = [
@@ -81,7 +83,24 @@ export default function Checkout() {
     refresh,
     live,
     hasBulk,
+    setQty,
   } = useCart();
+  const [qtyBusy, setQtyBusy] = useState("");
+  const [qtyError, setQtyError] = useState("");
+
+  async function changeQty(item, qty) {
+    if (qtyBusy) return;
+    const key = item.cartItemId || item.id + item.pack;
+    setQtyBusy(key);
+    setQtyError("");
+    try {
+      await setQty(item.id, item.pack, qty, item.bulk);
+    } catch (err) {
+      setQtyError(err.message || "Could not update quantity");
+    } finally {
+      setQtyBusy("");
+    }
+  }
 
   const location = useLocation();
   const navigate = useNavigate();
@@ -225,7 +244,7 @@ export default function Checkout() {
   const hasDelivery = items.some((item) => item.fulfillmentMode !== "store_pickup");
 
   const payable = totals.grandTotal || 0;
-  const canPlace = live && Boolean(addressId) && Boolean(preview) && !previewError && !previewLoading && !busy;
+  const canPlace = live && Boolean(addressId) && Boolean(preview) && !previewError && !previewLoading && !busy && !qtyBusy;
 
   /* -------------------------------------------------------
      EMPTY CART
@@ -888,17 +907,23 @@ export default function Checkout() {
               {/* Products */}
 
               <div className="px-4 py-4 sm:px-5">
-                <ul className="max-h-[270px] space-y-3 overflow-auto pr-1">
-                  {items.map((item) => (
-                    <CheckoutItem
-                      key={
-                        (item.cartItemId ||
-                          item.id) + item.pack
-                      }
-                      item={item}
-                    />
-                  ))}
+                <ul className="max-h-[360px] space-y-3 overflow-auto pr-1">
+                  {items.map((item) => {
+                    const key = item.cartItemId || item.id + item.pack;
+                    return (
+                      <CheckoutItem
+                        key={key + (item.bulk ? ":bulk" : "")}
+                        item={item}
+                        busy={qtyBusy === key}
+                        locked={Boolean(qtyBusy) || busy}
+                        onQty={(qty) => changeQty(item, qty)}
+                      />
+                    );
+                  })}
                 </ul>
+                {qtyError ? (
+                  <p className="mt-3 rounded-lg bg-msr-danger-soft px-3 py-2 text-[12px] text-msr-danger">{qtyError}</p>
+                ) : null}
               </div>
 
               {/* Coupon */}
@@ -1092,7 +1117,11 @@ function SectionHeader({
    CHECKOUT ITEM
 ============================================================ */
 
-function CheckoutItem({ item }) {
+function CheckoutItem({ item, busy, locked, onQty }) {
+  const rules = qtyRules(item);
+  const slabs = [...(item.tierPrices || [])].sort((a, b) => a.minQty - b.minQty);
+  const activeSlab = [...slabs].reverse().find((s) => item.qty >= s.minQty);
+  const next = nextSlab(slabs, item.qty);
   return (
     <li className="flex gap-3">
       <div className="grid h-12 w-12 shrink-0 place-items-center overflow-hidden rounded-lg bg-msr-bg">
@@ -1113,9 +1142,36 @@ function CheckoutItem({ item }) {
         </p>
 
         <p className="mt-0.5 text-[10px] text-msr-subtle">
-          {item.pack} × {item.qty}
-          {item.bulk ? <span className="ml-1 font-semibold text-msr-ink">· Bulk</span> : null}
+          {item.pack} · {inr(item.price)} each
+          {item.bulk ? <span className="ml-1 rounded bg-msr-gold/30 px-1 font-semibold text-msr-ink">Bulk</span> : null}
         </p>
+        {item.issue ? (
+          <p className="mt-1 text-[10.5px] font-semibold text-msr-danger">{item.issue}</p>
+        ) : (
+          <div className={`mt-1.5 flex items-center gap-2 ${locked && !busy ? "pointer-events-none opacity-60" : ""}`}>
+            <QtyInput
+              value={item.qty}
+              onChange={onQty}
+              size="sm"
+              disabled={locked}
+              min={rules.min}
+              max={rules.max}
+              step={rules.step}
+            />
+            {busy ? <span className="h-3.5 w-3.5 animate-spin rounded-full border-2 border-msr-line border-t-msr-primary" /> : null}
+          </div>
+        )}
+        {item.bulk && !item.issue ? (
+          <p className="mt-1 text-[10px] leading-4 text-msr-muted">
+            {activeSlab ? (
+              <span className="font-semibold text-msr-primary-ink">
+                Slab {slabRange(activeSlab)} · {inr(activeSlab.unitPrice)}
+              </span>
+            ) : null}
+            {next ? <span> · add {next.minQty - item.qty} more for {inr(next.unitPrice)}</span> : null}
+            <span className="block">{bulkRulesText(item)}</span>
+          </p>
+        ) : null}
       </div>
 
       <p className="shrink-0 text-[12px] font-extrabold text-msr-ink">

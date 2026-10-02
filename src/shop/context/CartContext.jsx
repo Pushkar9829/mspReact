@@ -139,7 +139,8 @@ export function CartProvider({ children }) {
 
   const value = useMemo(() => {
     const buyable = items.filter((i) => !i.issue);
-    const count = items.reduce((n, i) => n + i.qty, 0);
+    /** Distinct cart lines (a pack bought regular and in bulk counts as two), not total quantity. */
+    const count = items.length;
     const mrp = buyable.reduce((n, i) => n + (i.mrp || i.price) * i.qty, 0);
     const subtotal = live ? quote.subtotal : buyable.reduce((n, i) => n + i.price * i.qty, 0);
     const discount = live ? quote.couponDiscount || 0 : 0;

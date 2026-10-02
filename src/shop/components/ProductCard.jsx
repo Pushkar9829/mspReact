@@ -1,10 +1,10 @@
 import { useState } from "react";
 import { Link } from "react-router-dom";
-import { Boxes, Heart, Loader2, Minus, Plus, ShoppingCart } from "lucide-react";
+import { Boxes, Check, Heart, Loader2, ShoppingCart } from "lucide-react";
 import { discount } from "../data/catalog.js";
 import { useCart } from "../context/CartContext.jsx";
 import { Price, RatingPill, Skeleton } from "./shopUi.jsx";
-import { qtyRules, stepQty } from "../lib/qtyRules.js";
+import { qtyRules } from "../lib/qtyRules.js";
 
 export const PRODUCT_GRID =
   "grid grid-cols-2 gap-3 sm:gap-4 md:grid-cols-3 lg:grid-cols-4 2xl:grid-cols-5";
@@ -19,7 +19,7 @@ function formatReviews(n) {
 
 /** `bulk` cards (bulk screen only) add bulk lines with MOQ/slabs; elsewhere items are added one at a time. */
 export default function ProductCard({ product, bulk = false }) {
-  const { add, items, setQty, findLine, isWished, toggleWish } = useCart();
+  const { add, items, findLine, isWished, toggleWish } = useCart();
   const [busy, setBusy] = useState(false);
   const inCart = findLine(product.id, product.weight, bulk);
   const otherMode = findLine(product.id, product.weight, !bulk)?.qty || 0;
@@ -33,7 +33,6 @@ export default function ProductCard({ product, bulk = false }) {
     .reduce((n, item) => n + item.qty, 0);
   const stock = product.stock == null ? undefined : product.stock - otherMode;
   const rules = qtyRules(product, { bulk, stock, inCartElsewhere: elsewhere });
-  const atMax = inCart ? inCart.qty >= rules.max : false;
   const showBulkLink = !bulk && product.bulkEligible;
   const cannotAdd = outOfStock || rules.max < rules.min;
 
@@ -120,33 +119,16 @@ export default function ProductCard({ product, bulk = false }) {
       <div className="relative z-10 flex gap-1.5 px-3 pb-3 pt-3 sm:px-3.5 sm:pb-3.5">
         <div className="min-w-0 flex-1">
         {inCart ? (
-          <div className="flex h-9 items-center justify-between overflow-hidden rounded-xl bg-msr-primary text-white">
-            <button
-              type="button"
-              onClick={(e) => {
-                stop(e);
-                run(() => setQty(product.id, product.weight, stepQty(rules, inCart.qty, -1), bulk));
-              }}
-              className="grid h-full w-10 place-items-center transition-colors hover:bg-black/10"
-              aria-label="Decrease quantity"
-            >
-              <Minus className="h-4 w-4" />
-            </button>
-            <span className="text-[13px] font-bold">{busy ? <Loader2 className="h-4 w-4 animate-spin" /> : inCart.qty}</span>
-            <button
-              type="button"
-              disabled={busy || atMax}
-              onClick={(e) => {
-                stop(e);
-                run(() => setQty(product.id, product.weight, stepQty(rules, inCart.qty, 1), bulk));
-              }}
-              className="grid h-full w-10 place-items-center transition-colors hover:bg-black/10 disabled:opacity-40"
-              aria-label="Increase quantity"
-              title={atMax ? "Maximum quantity reached" : undefined}
-            >
-              <Plus className="h-4 w-4" />
-            </button>
-          </div>
+          <Link
+            to="/cart"
+            onClick={(e) => e.stopPropagation()}
+            className="inline-flex h-9 w-full items-center justify-center gap-1.5 rounded-xl bg-msr-success text-[13px] font-semibold text-white transition-colors hover:bg-msr-success/90"
+            title={`${inCart.qty} in cart · change quantity in cart or checkout`}
+            aria-label={`${product.name} added to cart, view cart`}
+          >
+            <Check className="h-4 w-4" strokeWidth={2.5} />
+            Added
+          </Link>
         ) : (
           <button
             type="button"
@@ -158,7 +140,7 @@ export default function ProductCard({ product, bulk = false }) {
             className="inline-flex h-9 w-full items-center justify-center gap-1.5 rounded-xl border border-msr-primary bg-white text-[13px] font-semibold text-msr-primary transition-colors hover:bg-msr-primary hover:text-white disabled:border-msr-line disabled:text-msr-subtle disabled:hover:bg-white"
           >
             {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <ShoppingCart className="h-4 w-4" strokeWidth={2} />}
-            {outOfStock ? "Out of stock" : bulk ? `Bulk add ${rules.min}` : showBulkLink ? "Add" : "Add to cart"}
+            {outOfStock ? "Out of stock" : bulk ? "Bulk add" : "Add"}
           </button>
         )}
         </div>

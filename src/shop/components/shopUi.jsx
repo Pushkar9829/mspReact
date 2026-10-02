@@ -1,3 +1,4 @@
+import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import { Check, ChevronRight, Star, X } from "lucide-react";
 import { inr } from "../../shared/lib/format.js";
@@ -181,34 +182,93 @@ export function Breadcrumbs({ items = [] }) {
   );
 }
 
-export function QtyStepper({ value, onChange, size = "md", className = "", min = 1, max = Infinity, step = 1 }) {
-  const box = size === "sm" ? "h-8 w-8 text-sm" : "h-10 w-10";
-  const mid = size === "sm" ? "h-8 min-w-8 text-sm" : "h-10 min-w-10";
+/** Snap a typed quantity to the line rules: 0 removes, otherwise at least `min`, a multiple of `step`, at most `max`. */
+export function snapQty(raw, { min = 1, max = Infinity, step = 1 } = {}) {
+  const n = Math.floor(Number(raw));
+  if (!Number.isFinite(n)) return null;
+  if (n <= 0) return 0;
   const stepN = Math.max(1, Number(step) || 1);
   const minN = Math.max(1, Number(min) || 1);
-  const maxN = Number.isFinite(Number(max)) ? Number(max) : Infinity;
-  function bump(delta) {
-    const next = value + delta * stepN;
-    if (next < minN) {
-      onChange(0);
+  const maxN = Number.isFinite(Number(max)) ? Math.floor(Number(max) / stepN) * stepN : Infinity;
+  let next = Math.max(minN, Math.ceil(n / stepN) * stepN);
+  if (next > maxN) next = maxN;
+  return next;
+}
+
+/**
+ * Typed quantity box. Commits on Enter or blur, snapping to the rules; entering 0 removes the line.
+ * Shows a short note when the typed value had to be adjusted.
+ */
+export function QtyInput({ value, onChange, min = 1, max = Infinity, step = 1, size = "md", disabled = false, className = "" }) {
+  const [draft, setDraft] = useState(String(value));
+  const [note, setNote] = useState("");
+  const [settled, setSettled] = useState(0);
+
+  useEffect(() => {
+    setDraft(String(value));
+  }, [value, settled]);
+
+  function commit() {
+    const typed = draft.trim();
+    if (typed === "" || typed === String(value)) {
+      setDraft(String(value));
       return;
     }
-    onChange(Math.min(maxN, next));
+    const next = snapQty(typed, { min, max, step });
+    if (next == null) {
+      setDraft(String(value));
+      return;
+    }
+    if (next > 0 && next !== Math.floor(Number(typed))) {
+      const rules = [
+        min > 1 ? `min ${min}` : "",
+        step > 1 ? `steps of ${step}` : "",
+        Number.isFinite(Number(max)) ? `max ${max}` : "",
+      ].filter(Boolean);
+      setNote(`Set to ${next}${rules.length ? ` (${rules.join(", ")})` : ""}`);
+      setTimeout(() => setNote(""), 3500);
+    } else {
+      setNote("");
+    }
+    setDraft(String(next));
+    if (next !== value) {
+      Promise.resolve(onChange(next))
+        .catch(() => {})
+        .finally(() => setSettled((n) => n + 1));
+    }
   }
+
+  const box = size === "sm" ? "h-8 w-20 text-sm" : "h-10 w-24";
   return (
-    <div className={cx("inline-flex items-center overflow-hidden rounded-xl border border-msr-line bg-white", className)}>
-      <button type="button" className={cx(box, "text-msr-muted hover:bg-msr-bg")} onClick={() => bump(-1)}>
-        −
-      </button>
-      <span className={cx(mid, "grid place-items-center font-semibold")}>{value}</span>
-      <button
-        type="button"
-        className={cx(box, "text-msr-ink hover:bg-msr-bg")}
-        disabled={value + stepN > maxN}
-        onClick={() => bump(1)}
-      >
-        +
-      </button>
+    <div className={cx("inline-flex flex-col", className)}>
+      <label className="inline-flex items-center gap-1.5">
+        <span className="text-[11px] font-semibold text-msr-muted">Qty</span>
+        <input
+          type="number"
+          inputMode="numeric"
+          min={0}
+          max={Number.isFinite(Number(max)) ? max : undefined}
+          step={step}
+          value={draft}
+          disabled={disabled}
+          onChange={(e) => setDraft(e.target.value)}
+          onBlur={commit}
+          onKeyDown={(e) => {
+            if (e.key === "Enter") e.currentTarget.blur();
+            if (e.key === "Escape") {
+              setDraft(String(value));
+              e.currentTarget.blur();
+            }
+          }}
+          onFocus={(e) => e.currentTarget.select()}
+          aria-label="Quantity"
+          className={cx(
+            box,
+            "rounded-lg border border-msr-line-strong bg-white px-2 text-center font-semibold text-msr-ink outline-none focus:border-msr-primary focus:ring-2 focus:ring-msr-primary/15 disabled:opacity-60"
+          )}
+        />
+      </label>
+      {note ? <span className="mt-1 text-[10.5px] font-semibold text-msr-warning-ink">{note}</span> : null}
     </div>
   );
 }

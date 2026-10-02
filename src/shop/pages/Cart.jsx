@@ -19,7 +19,7 @@ import { useAuth } from "../../shared/context/AuthContext.jsx";
 import { getProduct } from "../data/catalog.js";
 import { api } from "../../shared/api.js";
 import { inr } from "../../shared/lib/format.js";
-import { Button, EmptyState, QtyStepper, buttonClass, inputClass } from "../components/shopUi.jsx";
+import { Button, EmptyState, QtyInput, buttonClass, inputClass } from "../components/shopUi.jsx";
 import { qtyRules } from "../lib/qtyRules.js";
 import { SlabStrip, bulkRulesText, nextSlab } from "../components/SlabTable.jsx";
 import { GstBreakup, SummaryRows } from "../components/OrderSummaryBreakdown.jsx";
@@ -478,10 +478,11 @@ export default function Cart() {
                         ) : (
                           <div className="mt-auto flex flex-wrap items-end justify-between gap-3 pt-3">
                             <div className={lineBusy || (busyLine && !lineBusy) ? "pointer-events-none opacity-60" : ""}>
-                              <QtyStepper
+                              <QtyInput
                                 value={item.qty}
                                 onChange={(q) => lineAction(lineKey, () => setQty(item.id, item.pack, q, item.bulk))}
                                 size="sm"
+                                disabled={Boolean(busyLine)}
                                 min={rules.min}
                                 max={rules.max}
                                 step={rules.step}
