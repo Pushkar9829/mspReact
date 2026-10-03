@@ -18,6 +18,33 @@ function isoInput(daysFromNow) {
   return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
 }
 
+const APPLIES_TO = [
+  { id: "all", label: "All purchases (single + bulk)" },
+  { id: "regular", label: "Single purchases only" },
+  { id: "bulk", label: "Bulk purchases only" },
+];
+
+function appliesLabel(value) {
+  if (value === "regular") return "Single only";
+  if (value === "bulk") return "Bulk only";
+  return "All";
+}
+
+function AppliesToField() {
+  return (
+    <label className="grid gap-1 text-xs font-semibold text-msr-muted">
+      Applies to
+      <select name="appliesTo" className={FIELD} defaultValue="all">
+        {APPLIES_TO.map((o) => (
+          <option key={o.id} value={o.id}>
+            {o.label}
+          </option>
+        ))}
+      </select>
+    </label>
+  );
+}
+
 function localToIso(value) {
   const d = new Date(value);
   return Number.isNaN(d.getTime()) ? value : d.toISOString();
@@ -47,6 +74,7 @@ export default function Offers() {
         value: Number(form.get("value") || 0),
         startsAt: localToIso(form.get("startsAt")),
         endsAt: localToIso(form.get("endsAt")),
+        appliesTo: String(form.get("appliesTo") || "all"),
         status: "draft",
       });
       setOpen("");
@@ -70,6 +98,8 @@ export default function Offers() {
         type: String(form.get("type") || "percent"),
         value: Number(form.get("value") || 0),
         minCartValue: Number(form.get("minCartValue") || 0),
+        appliesTo: String(form.get("appliesTo") || "all"),
+        firstOrderOnly: Boolean(form.get("firstOrderOnly")),
       });
       setOpen("");
       coupons.reload();
@@ -111,7 +141,9 @@ export default function Offers() {
       <div className="flex flex-wrap items-end justify-between gap-3">
         <div>
           <h1 className="text-2xl font-extrabold">Offers</h1>
-          <p className="mt-1 text-sm text-msr-muted">Catalog promotions and checkout coupons.</p>
+          <p className="mt-1 text-sm text-msr-muted">
+            Catalog promotions and checkout coupons, for single purchases, bulk purchases or both.
+          </p>
         </div>
         <button
           type="button"
@@ -156,6 +188,7 @@ export default function Offers() {
             { key: "name", label: "Name", render: (row) => <span className="font-semibold">{row.name}</span> },
             { key: "type", label: "Type", render: (row) => prettyStatus(row.type) },
             { key: "value", label: "Value", render: (row) => (row.type === "percent" ? `${row.value}%` : inr(row.value)) },
+            { key: "appliesTo", label: "Applies to", render: (row) => appliesLabel(row.appliesTo) },
             { key: "status", label: "Status", render: (row) => <StatusBadge value={row.status} /> },
             {
               key: "actions",
@@ -197,6 +230,11 @@ export default function Offers() {
             { key: "code", label: "Code", render: (row) => <span className="font-semibold">{row.code}</span> },
             { key: "name", label: "Name" },
             { key: "value", label: "Value", render: (row) => (row.type === "percent" ? `${row.value}%` : inr(row.value)) },
+            {
+              key: "appliesTo",
+              label: "Applies to",
+              render: (row) => `${appliesLabel(row.appliesTo)}${row.firstOrderOnly ? " · first order" : ""}`,
+            },
             { key: "status", label: "Status", render: (row) => <StatusBadge value={row.status} /> },
             {
               key: "actions",
@@ -233,6 +271,7 @@ export default function Offers() {
               Ends
               <input name="endsAt" type="datetime-local" required defaultValue={isoInput(7)} className={FIELD} />
             </label>
+            <AppliesToField />
             {msg ? <p className="text-sm text-msr-danger">{msg}</p> : null}
             <button disabled={busy === "offer"} className="rounded-xl bg-msr-navy py-2.5 font-bold text-white disabled:opacity-50">
               {busy === "offer" ? "Creating…" : "Create offer"}
@@ -251,6 +290,11 @@ export default function Offers() {
             </select>
             <input name="value" type="number" min="0" required placeholder="Value" className={FIELD} />
             <input name="minCartValue" type="number" min="0" placeholder="Min cart value" className={FIELD} />
+            <AppliesToField />
+            <label className="flex items-center gap-2 text-sm">
+              <input name="firstOrderOnly" type="checkbox" />
+              First order only (new customers of your store)
+            </label>
             {msg ? <p className="text-sm text-msr-danger">{msg}</p> : null}
             <button disabled={busy === "coupon"} className="rounded-xl bg-msr-navy py-2.5 font-bold text-white disabled:opacity-50">
               {busy === "coupon" ? "Creating…" : "Create coupon"}

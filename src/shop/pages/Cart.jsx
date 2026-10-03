@@ -19,7 +19,7 @@ import { useAuth } from "../../shared/context/AuthContext.jsx";
 import { getProduct } from "../data/catalog.js";
 import { api } from "../../shared/api.js";
 import { inr } from "../../shared/lib/format.js";
-import { Button, EmptyState, QtyInput, buttonClass, inputClass } from "../components/shopUi.jsx";
+import { Button, EmptyState, FulfillmentToggle, QtyInput, buttonClass, inputClass } from "../components/shopUi.jsx";
 import { qtyRules } from "../lib/qtyRules.js";
 import { SlabStrip, bulkRulesText, nextSlab } from "../components/SlabTable.jsx";
 import { GstBreakup, SummaryRows } from "../components/OrderSummaryBreakdown.jsx";
@@ -38,7 +38,9 @@ export default function Cart() {
   const {
     items,
     setQty,
+    setMode,
     remove,
+    quote,
     mrp,
     subtotal,
     discount,
@@ -438,7 +440,7 @@ export default function Cart() {
                                   Bulk
                                 </span>
                               ) : null}
-                              {item.fulfillmentMode === "store_pickup" ? (
+                              {item.fulfillmentMode === "store_pickup" && (item.deliveryModes || []).length < 2 ? (
                                 <span className="rounded-md bg-msr-primary-soft px-1.5 py-0.5 text-[11px] font-semibold text-msr-primary-ink">
                                   Store pickup
                                 </span>
@@ -449,6 +451,15 @@ export default function Cart() {
                                 </span>
                               ) : null}
                             </div>
+                            {!item.issue ? (
+                              <FulfillmentToggle
+                                className="mt-2"
+                                modes={item.deliveryModes}
+                                value={item.fulfillmentMode}
+                                disabled={Boolean(busyLine)}
+                                onChange={(mode) => lineAction(lineKey, () => setMode(item.id, item.pack, mode, item.bulk))}
+                              />
+                            ) : null}
                           </div>
                           <button
                             type="button"
@@ -721,6 +732,18 @@ export default function Cart() {
           <div className="overflow-hidden rounded-2xl border border-msr-line bg-white">
             <div className="p-5">
               <h2 className="text-[15px] font-bold text-msr-ink">Order summary</h2>
+              {(quote?.groups || []).map((g) =>
+                g.freeDeliveryRemaining > 0 ? (
+                  <p key={`free-${g.tenantId}`} className="mt-3 rounded-lg bg-msr-primary-soft px-3 py-2 text-[12px] font-semibold text-msr-primary-ink">
+                    Add {inr(g.freeDeliveryRemaining)} more{(quote.groups || []).length > 1 ? " from this seller" : ""} for free delivery
+                    (orders above {inr(g.freeDeliveryAbove)}).
+                  </p>
+                ) : g.freeDelivery ? (
+                  <p key={`free-${g.tenantId}`} className="mt-3 rounded-lg bg-msr-success-soft px-3 py-2 text-[12px] font-semibold text-msr-success-ink">
+                    Free delivery unlocked{(quote.groups || []).length > 1 ? " for one seller" : ""}.
+                  </p>
+                ) : null
+              )}
               <div className="mt-4">
                 <SummaryRows
                   items={items}

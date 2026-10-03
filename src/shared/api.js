@@ -104,13 +104,21 @@ export const api = {
   archiveProduct: (id) => request(`/api/v1/products/${encodeURIComponent(id)}`, { method: "DELETE" }),
   listCategories: (query = {}) => request(`/api/v1/categories${qs(query)}`),
   createCategory: (body) => request("/api/v1/categories", { method: "POST", body: JSON.stringify(body) }),
+  updateCategory: (id, body) =>
+    request(`/api/v1/categories/${encodeURIComponent(id)}`, { method: "PATCH", body: JSON.stringify(body) }),
+  deleteCategory: (id) => request(`/api/v1/categories/${encodeURIComponent(id)}`, { method: "DELETE" }),
   listBrands: () => request("/api/v1/brands"),
   createBrand: (body) => request("/api/v1/brands", { method: "POST", body: JSON.stringify(body) }),
+  updateBrand: (id, body) =>
+    request(`/api/v1/brands/${encodeURIComponent(id)}`, { method: "PATCH", body: JSON.stringify(body) }),
+  deleteBrand: (id) => request(`/api/v1/brands/${encodeURIComponent(id)}`, { method: "DELETE" }),
   geocode: (body) => request("/api/v1/location/geocode", { method: "POST", body: JSON.stringify(body) }),
   getCart: () => request("/api/v1/cart"),
   addCartItem: (body) => request("/api/v1/cart/items", { method: "POST", body: JSON.stringify(body) }),
   updateCartItem: (id, qty) =>
     request(`/api/v1/cart/items/${id}`, { method: "PATCH", body: JSON.stringify({ qty }) }),
+  setCartItemMode: (id, fulfillmentMode) =>
+    request(`/api/v1/cart/items/${id}`, { method: "PATCH", body: JSON.stringify({ fulfillmentMode }) }),
   removeCartItem: (id) => request(`/api/v1/cart/items/${id}`, { method: "DELETE" }),
   applyCoupon: (code) => request("/api/v1/cart/coupon", { method: "POST", body: JSON.stringify({ code: code || "" }) }),
   listCartCoupons: () => request("/api/v1/cart/coupons"),
@@ -148,6 +156,10 @@ export const api = {
       method: "POST",
       body: JSON.stringify({ status, ...extra }),
     }),
+  requestReturn: (id, body) =>
+    request(`/api/v1/orders/${encodeURIComponent(id)}/return`, { method: "POST", body: JSON.stringify(body) }),
+  rejectReturn: (id, note) =>
+    request(`/api/v1/orders/${encodeURIComponent(id)}/return/reject`, { method: "POST", body: JSON.stringify({ note }) }),
   me: () => request("/api/v1/auth/me"),
   updateMe: (body) => request("/api/v1/auth/me", { method: "PATCH", body: JSON.stringify(body) }),
   changePassword: (body) =>

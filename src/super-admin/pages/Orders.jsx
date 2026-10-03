@@ -52,6 +52,22 @@ export default function Orders() {
     }
   }
 
+  async function rejectReturn(order) {
+    const note = window.prompt("Why is the return rejected? The buyer will see this.");
+    if (!note || !note.trim()) return;
+    const id = rowId(order);
+    setBusy(id);
+    setMsg("");
+    try {
+      setDetail(await api.rejectReturn(id, note.trim()));
+      reload();
+    } catch (err) {
+      setMsg(err.message);
+    } finally {
+      setBusy("");
+    }
+  }
+
   async function exportCsv() {
     setExporting(true);
     setMsg("");
@@ -160,7 +176,16 @@ export default function Orders() {
           ]}
         />
       </PanelState>
-      {detail && openId === rowId(detail) ? <OrderDetailPanel detail={detail} /> : null}
+      {detail && openId === rowId(detail) ? (
+        <OrderDetailPanel
+          detail={detail}
+          busy={busy === rowId(detail)}
+          onApproveReturn={(order) => {
+            if (window.confirm(`Approve the return and refund ${inr(order.total)}?`)) changeStatus(rowId(order), "refunded");
+          }}
+          onRejectReturn={rejectReturn}
+        />
+      ) : null}
       <PanelPager meta={metaOf(data)} page={page} onPage={setPage} />
     </div>
   );

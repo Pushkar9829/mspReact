@@ -178,6 +178,15 @@ export default function OrderConfirmation() {
             ) : order.status === "pending" ? (
               <p className="mt-2 text-[12px] text-msr-subtle">Your GST invoice is issued once the seller confirms the order.</p>
             ) : null}
+            {order._id && !placed.length ? (
+              <ReturnPanel
+                order={order}
+                onUpdated={async () => {
+                  const fresh = await api.getOrder(order._id);
+                  setOrders((prev) => prev.map((o) => (o._id === order._id ? fresh : o)));
+                }}
+              />
+            ) : null}
           </article>
         ))}
 
@@ -225,6 +234,106 @@ export default function OrderConfirmation() {
           </Link>
         </div>
       </div>
+    </div>
+  );
+}
+
+const RETURN_REASONS = [
+  "Damaged or defective item",
+  "Wrong item delivered",
+  "Item missing from the order",
+  "Quality not as expected",
+  "Expired or near expiry",
+  "Other",
+];
+
+function ReturnPanel({ order, onUpdated }) {
+  const [open, setOpen] = useState(false);
+  const [reason, setReason] = useState(RETURN_REASONS[0]);
+  const [note, setNote] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState("");
+  const request = order.returnRequest || {};
+
+  if (request.status === "requested") {
+    return (
+      <p className="mt-3 rounded-lg bg-amber-50 px-3 py-2 text-sm text-amber-800">
+        Return requested ({request.reason}). The store will review it and refund once approved.
+      </p>
+    );
+  }
+  if (request.status === "approved") {
+    return <p className="mt-3 rounded-lg bg-msr-success-soft px-3 py-2 text-sm text-msr-success-ink">Return approved and refunded.</p>;
+  }
+  if (request.status === "rejected") {
+    return (
+      <p className="mt-3 rounded-lg bg-msr-danger-soft px-3 py-2 text-sm text-msr-danger">
+        Return rejected by the store{request.decisionNote ? `: ${request.decisionNote}` : "."}
+      </p>
+    );
+  }
+  if (!order.returnUntil || new Date(order.returnUntil).getTime() < Date.now()) return null;
+
+  async function submit(e) {
+    e.preventDefault();
+    setBusy(true);
+    setError("");
+    try {
+      await api.requestReturn(order._id, { reason, note });
+      setOpen(false);
+      await onUpdated();
+    } catch (err) {
+      setError(err.message || "Could not request a return");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  const easyItems = (order.items || []).filter((item) => item.easyReturn);
+  return (
+    <div className="mt-4 rounded-xl border border-msr-line p-3 text-sm">
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <p className="text-msr-muted">
+          Return available until <span className="font-semibold text-msr-ink">{formatDate(order.returnUntil)}</span>
+          {easyItems.length < (order.items || []).length ? ` · only “Easy return” items (${easyItems.length})` : ""}
+        </p>
+        {!open ? (
+          <Button size="sm" variant="secondary" onClick={() => setOpen(true)}>
+            Request return
+          </Button>
+        ) : null}
+      </div>
+      {open ? (
+        <form className="mt-3 grid gap-2" onSubmit={submit}>
+          <label className="text-[12px] font-semibold text-msr-muted">
+            Reason
+            <select value={reason} onChange={(e) => setReason(e.target.value)} className="mt-1 w-full rounded-lg border border-msr-line px-3 py-2 text-sm text-msr-ink">
+              {RETURN_REASONS.map((r) => (
+                <option key={r} value={r}>
+                  {r}
+                </option>
+              ))}
+            </select>
+          </label>
+          <textarea
+            value={note}
+            onChange={(e) => setNote(e.target.value)}
+            rows={2}
+            maxLength={1000}
+            placeholder="Anything the store should know (optional)"
+            className="rounded-lg border border-msr-line px-3 py-2 text-sm"
+          />
+          {error ? <p className="text-[12px] text-msr-danger">{error}</p> : null}
+          <div className="flex gap-2">
+            <Button size="sm" type="submit" disabled={busy}>
+              {busy ? "Sending…" : "Send return request"}
+            </Button>
+            <Button size="sm" variant="secondary" onClick={() => setOpen(false)} disabled={busy}>
+              Cancel
+            </Button>
+          </div>
+        </form>
+      ) : null}
     </div>
   );
 }

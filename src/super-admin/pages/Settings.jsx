@@ -62,6 +62,9 @@ export default function Settings() {
     feePercent: 0,
     partnerChoice: true,
     partners: DEFAULT_PARTNERS,
+    codEnabled: true,
+    returnsEnabled: true,
+    returnWindowDays: 7,
   });
 
   useEffect(() => {
@@ -74,6 +77,9 @@ export default function Settings() {
         feePercent: Number(settingValue(data, "platform.feePercent", 0)) || 0,
         partnerChoice: Boolean(settingValue(data, "platform.deliveryPartnerChoiceEnabled", true)),
         partners: Array.isArray(partners) && partners.length ? partners : DEFAULT_PARTNERS,
+        codEnabled: settingValue(data, "payments.codEnabled", true) !== false,
+        returnsEnabled: settingValue(data, "returns.enabled", true) !== false,
+        returnWindowDays: Number(settingValue(data, "returns.windowDays", 7)) || 7,
       });
       const wish = settingValue(data, "platform.festival", null);
       if (wish && typeof wish === "object") {
@@ -133,6 +139,9 @@ export default function Settings() {
                 api.upsertSetting("platform.feePercent", Number(commerce.feePercent) || 0),
                 api.upsertSetting("platform.deliveryPartnerChoiceEnabled", Boolean(commerce.partnerChoice)),
                 api.upsertSetting("platform.deliveryPartners", commerce.partners),
+                api.upsertSetting("payments.codEnabled", Boolean(commerce.codEnabled)),
+                api.upsertSetting("returns.enabled", Boolean(commerce.returnsEnabled)),
+                api.upsertSetting("returns.windowDays", Math.min(90, Math.max(1, Number(commerce.returnWindowDays) || 7))),
               ]);
               setMsg("Commerce settings saved.");
               reload();
@@ -228,8 +237,54 @@ export default function Settings() {
               </div>
             ))}
           </div>
+          <div className="rounded-xl border border-msr-border p-3">
+            <h3 className="text-sm font-extrabold">Payment methods</h3>
+            <label className="mt-2 flex items-start gap-2 text-sm font-semibold">
+              <input
+                type="checkbox"
+                checked={commerce.codEnabled}
+                onChange={(e) => setCommerce((prev) => ({ ...prev, codEnabled: e.target.checked }))}
+                className="mt-0.5 h-4 w-4"
+              />
+              <span>
+                Allow Cash on Delivery
+                <span className="block text-xs font-normal text-msr-muted">
+                  When off, no store can take COD. When on, each store can still switch COD off for itself.
+                </span>
+              </span>
+            </label>
+          </div>
+          <div className="rounded-xl border border-msr-border p-3">
+            <h3 className="text-sm font-extrabold">Return policy</h3>
+            <label className="mt-2 flex items-start gap-2 text-sm font-semibold">
+              <input
+                type="checkbox"
+                checked={commerce.returnsEnabled}
+                onChange={(e) => setCommerce((prev) => ({ ...prev, returnsEnabled: e.target.checked }))}
+                className="mt-0.5 h-4 w-4"
+              />
+              <span>
+                Allow returns
+                <span className="block text-xs font-normal text-msr-muted">
+                  Applies to every store. Buyers can return items marked “Easy return”; the store approves (refund) or rejects.
+                </span>
+              </span>
+            </label>
+            <label className="mt-3 block text-sm font-semibold">
+              Return window (days after delivery)
+              <input
+                type="number"
+                min="1"
+                max="90"
+                value={commerce.returnWindowDays}
+                disabled={!commerce.returnsEnabled}
+                onChange={(e) => setCommerce((prev) => ({ ...prev, returnWindowDays: e.target.value }))}
+                className={`mt-1 max-w-[160px] font-normal ${FIELD}`}
+              />
+            </label>
+          </div>
           <button type="submit" disabled={busy} className="rounded-lg bg-msr-navy px-4 py-2 text-[13px] font-semibold text-white disabled:opacity-50">
-            {busy ? "Saving…" : "Save fee & partners"}
+            {busy ? "Saving…" : "Save fees, partners, payments & returns"}
           </button>
         </form>
         ) : null}

@@ -56,7 +56,44 @@ export function trackingForShip(status) {
   return { trackingNumber: trimmed, carrier: carrier.trim() };
 }
 
-export function OrderDetailPanel({ detail }) {
+function ReturnRequestBox({ request, busy, onApprove, onReject }) {
+  if (!request?.status) return null;
+  const tone =
+    request.status === "requested"
+      ? "border-amber-200 bg-amber-50"
+      : request.status === "approved"
+        ? "border-msr-success/20 bg-msr-success-soft"
+        : "border-msr-danger/20 bg-msr-danger-soft";
+  return (
+    <div className={`mt-3 rounded-xl border p-3 text-sm ${tone}`}>
+      <p className="font-bold text-msr-navy">
+        {request.status === "requested" ? "Return requested" : request.status === "approved" ? "Return approved (refunded)" : "Return rejected"}
+      </p>
+      <p className="mt-1 text-msr-navy">
+        Reason: {request.reason}
+        {request.requestedAt ? <span className="text-msr-muted"> · {new Date(request.requestedAt).toLocaleDateString("en-IN")}</span> : null}
+      </p>
+      {request.note ? <p className="mt-1 text-msr-muted">“{request.note}”</p> : null}
+      {request.decisionNote ? <p className="mt-1 text-msr-muted">Store note: {request.decisionNote}</p> : null}
+      {request.status === "requested" && (onApprove || onReject) ? (
+        <div className="mt-2 flex gap-2">
+          {onApprove ? (
+            <button type="button" disabled={busy} onClick={onApprove} className="rounded-lg bg-msr-navy px-3 py-1.5 text-xs font-bold text-white disabled:opacity-50">
+              Approve &amp; refund
+            </button>
+          ) : null}
+          {onReject ? (
+            <button type="button" disabled={busy} onClick={onReject} className="rounded-lg border border-msr-danger px-3 py-1.5 text-xs font-bold text-msr-danger disabled:opacity-50">
+              Reject
+            </button>
+          ) : null}
+        </div>
+      ) : null}
+    </div>
+  );
+}
+
+export function OrderDetailPanel({ detail, busy = false, onApproveReturn, onRejectReturn }) {
   if (!detail) return null;
   const buyer = detail.buyerId?.name || detail.buyerId?.email || "Buyer";
   return (
@@ -102,6 +139,12 @@ export function OrderDetailPanel({ detail }) {
         ))}
       </ul>
       <OrderTotals order={detail} />
+      <ReturnRequestBox
+        request={detail.returnRequest}
+        busy={busy}
+        onApprove={onApproveReturn ? () => onApproveReturn(detail) : null}
+        onReject={onRejectReturn ? () => onRejectReturn(detail) : null}
+      />
       {detail.buyerNotes ? (
         <p className="mt-3 text-sm text-msr-muted">
           Buyer notes: <span className="text-msr-navy">{detail.buyerNotes}</span>

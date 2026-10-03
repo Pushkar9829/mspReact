@@ -34,6 +34,7 @@ function lineFromQuote(i) {
     tax: i.tax ?? 0,
     lineTotal: i.lineTotal ?? 0,
     fulfillmentMode: i.fulfillmentMode || "delivery_partner",
+    deliveryModes: i.deliveryModes?.length ? i.deliveryModes : ["delivery_partner"],
     easyReturn: Boolean(i.easyReturn),
     wholesale: i.wholesale || {},
     tierPrices: i.tierPrices || [],
@@ -227,6 +228,20 @@ export function CartProvider({ children }) {
             .map((i) => (match(i) ? { ...i, qty } : i))
             .filter((i) => i.qty > 0)
         );
+      },
+      setMode: async (id, pack, fulfillmentMode, bulk = false) => {
+        const match = (i) => i.id === id && i.pack === pack && Boolean(i.bulk) === Boolean(bulk);
+        const row = items.find(match);
+        if (live && row?.cartItemId) {
+          try {
+            applyQuote(await api.setCartItemMode(row.cartItemId, fulfillmentMode));
+          } catch (err) {
+            await recover(err);
+            throw err;
+          }
+          return;
+        }
+        setItems((prev) => prev.map((i) => (match(i) ? { ...i, fulfillmentMode } : i)));
       },
       remove: async (id, pack, bulk = false) => {
         const match = (i) => i.id === id && i.pack === pack && Boolean(i.bulk) === Boolean(bulk);

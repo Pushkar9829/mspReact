@@ -273,6 +273,38 @@ export function QtyInput({ value, onChange, min = 1, max = Infinity, step = 1, s
   );
 }
 
+const MODE_LABELS = { delivery_partner: "Delivery", store_pickup: "Store pickup" };
+
+/** Delivery vs store pickup for one cart line; renders nothing when the product offers a single mode. */
+export function FulfillmentToggle({ modes = [], value, onChange, disabled = false, className = "" }) {
+  const options = ["delivery_partner", "store_pickup"].filter((m) => modes.includes(m));
+  if (options.length < 2) return null;
+  return (
+    <div role="radiogroup" aria-label="How to receive" className={cx("inline-flex rounded-lg border border-msr-line bg-msr-surface p-0.5", className)}>
+      {options.map((mode) => {
+        const active = value === mode;
+        return (
+          <button
+            key={mode}
+            type="button"
+            role="radio"
+            aria-checked={active}
+            disabled={disabled || active}
+            onClick={() => onChange(mode)}
+            className={cx(
+              "rounded-md px-2.5 py-1 text-[11.5px] font-semibold transition",
+              active ? "bg-white text-msr-primary shadow-sm" : "text-msr-muted hover:text-msr-ink",
+              disabled && !active ? "opacity-50" : ""
+            )}
+          >
+            {MODE_LABELS[mode]}
+          </button>
+        );
+      })}
+    </div>
+  );
+}
+
 export function Stars({ value }) {
   const full = Math.round(value);
   return (

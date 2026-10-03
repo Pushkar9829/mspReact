@@ -5,6 +5,7 @@ import { inr } from "../../shared/lib/format.js";
 import { parseBulkProductCsv, readTierPricesFromForm } from "../../shared/lib/bulk.js";
 import { useApi } from "../../shared/hooks/useApi.js";
 import { useListQuery } from "../../shared/hooks/useListQuery.js";
+import CatalogManager from "../../shared/components/CatalogManager.jsx";
 import { PanelState, PanelTable } from "../../shared/components/PanelTable.jsx";
 import { ActionBtn, FIELD, PanelModal, PanelPager, PanelToolbar, StatusBadge } from "../../shared/components/PanelKit.jsx";
 import { PRODUCT_STATUSES, metaOf, rowId, statusOptions } from "../../shared/lib/panel.js";
@@ -80,6 +81,12 @@ function WholesaleFields({ defaults = {}, slabs = [] }) {
     </fieldset>
   );
 }
+
+function refId(value) {
+  if (!value) return "";
+  return typeof value === "object" ? String(value._id || value.id || "") : String(value);
+}
+
 
 export default function Products() {
   const { q, setQ, page, setPage, filters, setFilter, reset, query } = useListQuery();
@@ -171,6 +178,9 @@ export default function Products() {
     const tierPrices = readTierPricesFromForm(form);
     try {
       await api.updateProduct(rowId(editing), {
+        name: String(form.get("name") || "").trim() || editing.name,
+        categoryId: String(form.get("categoryId") || "") || null,
+        brandId: String(form.get("brandId") || "") || null,
         easyReturn: Boolean(form.get("easyReturn")),
         deliveryModes: deliveryModes.length ? deliveryModes : ["delivery_partner"],
         sellingPrice: Number(form.get("sellingPrice") || 0),
@@ -222,26 +232,9 @@ export default function Products() {
     }
   }
 
-  async function createCatalog(e) {
-    e.preventDefault();
-    setBusy(catalog);
-    setMsg("");
-    const form = new FormData(e.currentTarget);
-    const name = String(form.get("name") || "").trim();
-    try {
-      if (catalog === "category") await api.createCategory({ name });
-      else await api.createBrand({ name });
-      setCatalog("");
-      categories.reload();
-      brands.reload();
-    } catch (err) {
-      setMsg(err.message);
-    } finally {
-      setBusy("");
-    }
-  }
-
-  async function archive(id) {
+  async function archive(row) {
+    const id = rowId(row);
+    if (!window.confirm(`Delete “${row.name}”? It will be removed from the shop and moved to Archived.`)) return;
     setBusy(id);
     setMsg("");
     try {
@@ -289,10 +282,10 @@ export default function Products() {
         </div>
         <div className="flex flex-wrap gap-2">
           <button type="button" onClick={() => setCatalog("category")} className="rounded-xl border border-msr-border px-4 py-2 text-sm font-bold">
-            New category
+            Categories
           </button>
           <button type="button" onClick={() => setCatalog("brand")} className="rounded-xl border border-msr-border px-4 py-2 text-sm font-bold">
-            New brand
+            Brands
           </button>
           <button type="button" onClick={() => setBulkOpen(true)} className="rounded-xl border border-msr-border px-4 py-2 text-sm font-bold">
             Bulk upload
@@ -383,8 +376,8 @@ export default function Products() {
                       Publish
                     </ActionBtn>
                   ) : (
-                    <ActionBtn danger disabled={busy === rowId(row)} onClick={() => archive(rowId(row))}>
-                      Archive
+                    <ActionBtn danger disabled={busy === rowId(row)} onClick={() => archive(row)}>
+                      Delete
                     </ActionBtn>
                   )}
                 </div>
@@ -452,6 +445,34 @@ export default function Products() {
       {editing ? (
         <PanelModal title={`Edit · ${editing.name}`} onClose={() => setEditing(null)}>
           <form className="grid gap-3" onSubmit={saveFlags}>
+            <label className="block text-sm font-semibold">
+              Product name
+              <input name="name" required maxLength={200} defaultValue={editing.name || ""} className={`mt-1 font-normal ${FIELD}`} />
+            </label>
+            <div className="grid gap-3 sm:grid-cols-2">
+              <label className="block text-sm font-semibold">
+                Category
+                <select name="categoryId" defaultValue={refId(editing.categoryId)} className={`mt-1 font-normal ${FIELD}`}>
+                  <option value="">No category</option>
+                  {categoryRows.map((row) => (
+                    <option key={rowId(row)} value={rowId(row)}>
+                      {row.name}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              <label className="block text-sm font-semibold">
+                Brand
+                <select name="brandId" defaultValue={refId(editing.brandId)} className={`mt-1 font-normal ${FIELD}`}>
+                  <option value="">No brand</option>
+                  {brandRows.map((row) => (
+                    <option key={rowId(row)} value={rowId(row)}>
+                      {row.name}
+                    </option>
+                  ))}
+                </select>
+              </label>
+            </div>
             <label className="block text-sm font-semibold">
               Selling price
               <input
@@ -538,15 +559,22 @@ export default function Products() {
         </PanelModal>
       ) : null}
       {catalog ? (
-        <PanelModal title={catalog === "category" ? "New category" : "New brand"} onClose={() => setCatalog("")}>
-          <form className="grid gap-3" onSubmit={createCatalog}>
-            <input name="name" required placeholder="Name" className={FIELD} />
-            {msg ? <p className="text-sm text-msr-danger">{msg}</p> : null}
-            <button disabled={busy === catalog} className="rounded-xl bg-msr-navy py-2.5 font-bold text-white disabled:opacity-50">
-              {busy === catalog ? "Saving…" : "Create"}
-            </button>
-          </form>
-        </PanelModal>
+        <CatalogManager
+          kind={catalog}
+          rows={
+            catalog === "category"
+              ? [...categoryRows].sort((a, b) => Number(Boolean(b.tenantId)) - Number(Boolean(a.tenantId)))
+              : brandRows
+          }
+          canEdit={(row) => catalog !== "category" || Boolean(row.tenantId)}
+          note={catalog === "category" ? "Shared categories are managed by the platform admin; you can add your own." : ""}
+          onClose={() => setCatalog("")}
+          onChanged={() => {
+            categories.reload();
+            brands.reload();
+            reload();
+          }}
+        />
       ) : null}
     </div>
   );

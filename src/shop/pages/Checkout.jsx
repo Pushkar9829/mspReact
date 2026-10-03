@@ -21,7 +21,7 @@ import {
 import { useCart } from "../context/CartContext.jsx";
 import { api } from "../../shared/api.js";
 import { inr } from "../../shared/lib/format.js";
-import { Button, EmptyState, QtyInput, buttonClass, inputClass } from "../components/shopUi.jsx";
+import { Button, EmptyState, FulfillmentToggle, QtyInput, buttonClass, inputClass } from "../components/shopUi.jsx";
 import { bulkRulesText, nextSlab, slabRange } from "../components/SlabTable.jsx";
 import { qtyRules } from "../lib/qtyRules.js";
 import { GstBreakup, SummaryRows } from "../components/OrderSummaryBreakdown.jsx";
@@ -84,6 +84,8 @@ export default function Checkout() {
     live,
     hasBulk,
     setQty,
+    setMode,
+    quote: cartQuote,
   } = useCart();
   const [qtyBusy, setQtyBusy] = useState("");
   const [qtyError, setQtyError] = useState("");
@@ -97,6 +99,20 @@ export default function Checkout() {
       await setQty(item.id, item.pack, qty, item.bulk);
     } catch (err) {
       setQtyError(err.message || "Could not update quantity");
+    } finally {
+      setQtyBusy("");
+    }
+  }
+
+  async function changeMode(item, mode) {
+    if (qtyBusy) return;
+    const key = item.cartItemId || item.id + item.pack;
+    setQtyBusy(key);
+    setQtyError("");
+    try {
+      await setMode(item.id, item.pack, mode, item.bulk);
+    } catch (err) {
+      setQtyError(err.message || "Could not change delivery option");
     } finally {
       setQtyBusy("");
     }
@@ -192,6 +208,8 @@ export default function Checkout() {
      CHECKOUT PREVIEW
   ------------------------------------------------------- */
 
+  const modeKey = items.map((i) => `${i.cartItemId}:${i.fulfillmentMode}`).join("|");
+
   useEffect(() => {
     if (!addressId) {
       setPreview(null);
@@ -228,7 +246,7 @@ export default function Checkout() {
     return () => {
       cancelled = true;
     };
-  }, [addressId, partnerId, previewNonce, subtotal]);
+  }, [addressId, partnerId, previewNonce, subtotal, modeKey]);
 
   const totals = preview || {
     subtotal,
@@ -244,6 +262,11 @@ export default function Checkout() {
   const hasDelivery = items.some((item) => item.fulfillmentMode !== "store_pickup");
 
   const payable = totals.grandTotal || 0;
+  const codAllowed = (preview?.codEnabled ?? cartQuote?.codEnabled) !== false;
+  useEffect(() => {
+    if (!codAllowed && pay === "cod") setPay("upi");
+  }, [codAllowed, pay]);
+
   const canPlace = live && Boolean(addressId) && Boolean(preview) && !previewError && !previewLoading && !busy && !qtyBusy;
 
   /* -------------------------------------------------------
@@ -699,8 +722,11 @@ export default function Checkout() {
                     ) : null}
                   </div>
                 ) : null}
+                {!codAllowed ? (
+                  <p className="mb-2.5 text-[11.5px] text-msr-subtle">Cash on delivery isn’t available for this order.</p>
+                ) : null}
                 <div className="grid gap-2.5 sm:grid-cols-2">
-                  {PAYMENTS.map((payment) => {
+                  {PAYMENTS.filter((payment) => payment.id !== "cod" || codAllowed).map((payment) => {
                     const Icon = payment.icon;
                     const active =
                       pay === payment.id;
@@ -917,6 +943,7 @@ export default function Checkout() {
                         busy={qtyBusy === key}
                         locked={Boolean(qtyBusy) || busy}
                         onQty={(qty) => changeQty(item, qty)}
+                        onMode={(mode) => changeMode(item, mode)}
                       />
                     );
                   })}
@@ -1117,7 +1144,7 @@ function SectionHeader({
    CHECKOUT ITEM
 ============================================================ */
 
-function CheckoutItem({ item, busy, locked, onQty }) {
+function CheckoutItem({ item, busy, locked, onQty, onMode }) {
   const rules = qtyRules(item);
   const slabs = [...(item.tierPrices || [])].sort((a, b) => a.minQty - b.minQty);
   const activeSlab = [...slabs].reverse().find((s) => item.qty >= s.minQty);
@@ -1161,6 +1188,15 @@ function CheckoutItem({ item, busy, locked, onQty }) {
             {busy ? <span className="h-3.5 w-3.5 animate-spin rounded-full border-2 border-msr-line border-t-msr-primary" /> : null}
           </div>
         )}
+        {!item.issue ? (
+          <FulfillmentToggle
+            className="mt-1.5"
+            modes={item.deliveryModes || []}
+            value={item.fulfillmentMode}
+            disabled={locked}
+            onChange={onMode}
+          />
+        ) : null}
         {item.bulk && !item.issue ? (
           <p className="mt-1 text-[10px] leading-4 text-msr-muted">
             {activeSlab ? (

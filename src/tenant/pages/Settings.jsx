@@ -28,6 +28,9 @@ export default function Settings() {
     feePercent: 0,
     partnerChoice: true,
     partners: DEFAULT_PARTNERS,
+    storeCodEnabled: true,
+    platformCodEnabled: true,
+    freeDeliveryAbove: 0,
   });
   const [pickup, setPickup] = useState({
     contactName: "",
@@ -88,6 +91,9 @@ export default function Settings() {
       feePercent: Number(row.feePercent) || 0,
       partnerChoice: Boolean(row.deliveryPartnerChoiceEnabled),
       partners: Array.isArray(partners) && partners.length ? partners : DEFAULT_PARTNERS,
+      storeCodEnabled: row.storeCodEnabled !== false,
+      platformCodEnabled: row.platformCodEnabled !== false,
+      freeDeliveryAbove: Number(row.freeDeliveryAbove) || 0,
     });
   }, [settings.data]);
 
@@ -273,6 +279,8 @@ export default function Settings() {
                 api.upsertSetting("platform.feePercent", Number(commerce.feePercent) || 0),
                 api.upsertSetting("platform.deliveryPartnerChoiceEnabled", commerce.partnerChoice),
                 api.upsertSetting("platform.deliveryPartners", commerce.partners),
+                api.upsertSetting("payments.codEnabled", Boolean(commerce.storeCodEnabled)),
+                api.upsertSetting("delivery.freeAbove", Math.max(0, Number(commerce.freeDeliveryAbove) || 0)),
               ]);
               setMsg("Commerce settings saved.");
               settings.reload();
@@ -369,8 +377,45 @@ export default function Settings() {
               </div>
             ))}
           </div>
+          <div className="rounded-xl border border-[#eceef4] p-3">
+            <h3 className="text-sm font-extrabold">Payment methods</h3>
+            <label className="mt-2 flex items-start gap-2 text-sm font-semibold">
+              <input
+                type="checkbox"
+                checked={commerce.storeCodEnabled}
+                disabled={!commerce.platformCodEnabled}
+                onChange={(e) => setCommerce((prev) => ({ ...prev, storeCodEnabled: e.target.checked }))}
+                className="mt-0.5 h-4 w-4"
+              />
+              <span>
+                Accept Cash on Delivery
+                <span className="block text-xs font-normal text-msr-muted">
+                  {commerce.platformCodEnabled
+                    ? "Buyers can pay cash when the order arrives. Turn off to accept only online, PO or credit payments."
+                    : "Cash on Delivery is turned off for the whole platform by the admin."}
+                </span>
+              </span>
+            </label>
+          </div>
+          <div className="rounded-xl border border-[#eceef4] p-3">
+            <h3 className="text-sm font-extrabold">Free delivery promotion</h3>
+            <label className="mt-2 block text-sm font-semibold">
+              Free delivery on orders above (₹)
+              <input
+                type="number"
+                min="0"
+                step="1"
+                value={commerce.freeDeliveryAbove}
+                onChange={(e) => setCommerce((prev) => ({ ...prev, freeDeliveryAbove: e.target.value }))}
+                className={`mt-1 max-w-[200px] font-normal ${FIELD}`}
+              />
+              <span className="mt-1 block text-xs font-normal text-msr-muted">
+                Delivery and partner fees are waived once an order from your store reaches this amount. 0 = off.
+              </span>
+            </label>
+          </div>
           <button type="submit" disabled={busy || !settings.data} className="rounded-lg bg-msr-navy px-4 py-2 text-[13px] font-semibold text-white disabled:opacity-60">
-            {busy ? "Saving…" : "Save fee & partners"}
+            {busy ? "Saving…" : "Save fees, partners & payments"}
           </button>
         </form>
         ) : null}
