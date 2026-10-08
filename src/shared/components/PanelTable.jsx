@@ -1,11 +1,18 @@
+/**
+ * Legacy table helpers, now thin wrappers over shared/ui. New pages: <DataTable> from shared/ui.
+ */
+import { cn } from "../ui/cn.js";
+import { StatCard } from "../ui/Card.jsx";
+import { EmptyState, ErrorState, SkeletonText } from "../ui/feedback.jsx";
+
 export function PanelTable({ columns, rows, rowKey, onRowClick, selectedKey }) {
   return (
-    <div className="mt-3 overflow-x-auto rounded-xl bg-white shadow-sm">
-      <table className="w-full text-left text-[13px]">
-        <thead className="bg-msr-bg text-[12px] text-msr-muted">
+    <div className="mt-3 overflow-x-auto rounded-lg border border-border bg-surface shadow-xs">
+      <table className="w-full text-left text-ui-sm">
+        <thead className="bg-surface-2 text-ui-xs text-fg-muted">
           <tr>
             {columns.map((col) => (
-              <th key={col.key} className="px-3 py-2 font-semibold">
+              <th key={col.key} scope="col" className="border-b border-border px-3 py-2 font-medium">
                 {col.label}
               </th>
             ))}
@@ -19,10 +26,22 @@ export function PanelTable({ columns, rows, rowKey, onRowClick, selectedKey }) {
               <tr
                 key={id}
                 onClick={onRowClick ? () => onRowClick(row) : undefined}
-                className={`border-t border-msr-border ${selected ? "bg-[#eef0ff]" : ""} ${onRowClick ? "cursor-pointer hover:bg-msr-bg/80" : ""}`}
+                onKeyDown={
+                  onRowClick
+                    ? (e) => {
+                        if (e.target === e.currentTarget && (e.key === "Enter" || e.key === " ")) {
+                          e.preventDefault();
+                          onRowClick(row);
+                        }
+                      }
+                    : undefined
+                }
+                tabIndex={onRowClick ? 0 : undefined}
+                aria-selected={selected || undefined}
+                className={cn("border-b border-border last:border-0", selected && "bg-primary-soft/60", onRowClick && "cursor-pointer hover:bg-surface-hover")}
               >
                 {columns.map((col) => (
-                  <td key={col.key} className="px-3 py-2 align-top">
+                  <td key={col.key} className="px-3 py-2 align-top text-fg">
                     {col.render ? col.render(row) : row[col.key]}
                   </td>
                 ))}
@@ -36,18 +55,12 @@ export function PanelTable({ columns, rows, rowKey, onRowClick, selectedKey }) {
 }
 
 export function PanelStat({ label, value, hint }) {
-  return (
-    <div className="rounded-xl bg-white p-3 shadow-sm">
-      <p className="text-[12px] text-msr-muted">{label}</p>
-      <p className="mt-1 text-lg font-bold">{value}</p>
-      {hint ? <p className="mt-2 text-xs text-msr-muted">{hint}</p> : null}
-    </div>
-  );
+  return <StatCard label={label} value={value} hint={hint} />;
 }
 
 export function PanelState({ loading, error, empty, emptyText = "Nothing here yet.", children }) {
-  if (loading) return <p className="mt-6 text-sm text-msr-muted">Loading…</p>;
-  if (error) return <p className="mt-6 text-sm text-msr-danger">{error}</p>;
-  if (empty) return <p className="mt-6 text-sm text-msr-muted">{emptyText}</p>;
+  if (loading) return <SkeletonText lines={4} className="mt-6" />;
+  if (error) return <ErrorState error={error} compact className="mt-2" />;
+  if (empty) return <EmptyState title={emptyText} compact className="mt-2" />;
   return children;
 }

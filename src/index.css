@@ -1,38 +1,13 @@
 @import "tailwindcss";
 
+@import "@fontsource-variable/plus-jakarta-sans/wght.css";
+@import "@fontsource-variable/inter/wght.css";
+@import "./shared/styles/tokens.css";
+/* Storefront layer: scoped to html.shop (set by ShopLayout via useShopTheme), so admin panels are unaffected. */
+@import "./shared/styles/shop-tokens.css";
+
 @theme {
-  --font-sans: "Plus Jakarta Sans", ui-sans-serif, system-ui, sans-serif;
-
-  --color-msr-navy: #0b1033;
-  --color-msr-navy-dark: #07091f;
-  --color-msr-purple: #2722b8;
-  --color-msr-accent: #4b46ff;
-  --color-msr-accent-light: #756fff;
-  --color-msr-gold: #f5c542;
-  --color-msr-bg: #f4f5f8;
-  --color-msr-card: #ffffff;
-  --color-msr-text: #0b1033;
-  --color-msr-muted: #6b6d80;
-  --color-msr-border: #e6e8ef;
-  --color-msr-success: #18a957;
-  --color-msr-danger: #e5484d;
-  --color-msr-warning: #f5a623;
-
-  --color-msr-ink: #0b1033;
-  --color-msr-brand: #0b1033;
-  --color-msr-primary: #4b46ff;
-  --color-msr-primary-hover: #3a35e8;
-  --color-msr-primary-soft: #eef0ff;
-  --color-msr-primary-ink: #2722b8;
-  --color-msr-surface: #f4f5f8;
-  --color-msr-line: #e6e8ef;
-  --color-msr-line-strong: #d5d8e4;
-  --color-msr-subtle: #9aa0b4;
-  --color-msr-danger-soft: #fff1f1;
-  --color-msr-success-soft: #e8f8ef;
-  --color-msr-success-ink: #0f7a3f;
-  --color-msr-warning-soft: #fff3d6;
-  --color-msr-warning-ink: #8a5a00;
+  --font-sans: "Plus Jakarta Sans Variable", "Plus Jakarta Sans", ui-sans-serif, system-ui, sans-serif;
 
   --shadow-card: 0 1px 2px rgba(11, 16, 51, 0.04), 0 8px 24px rgba(11, 16, 51, 0.06);
   --shadow-lift: 0 10px 28px rgba(11, 16, 51, 0.1);
@@ -66,8 +41,8 @@ body {
   margin: 0;
   min-height: 100vh;
   overflow-x: clip;
-  background: #f4f5f8;
-  color: #0b1033;
+  background: var(--bg);
+  color: var(--fg);
   font-family: var(--font-sans);
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;

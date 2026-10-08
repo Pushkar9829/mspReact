@@ -1,149 +1,213 @@
-import { useMemo, useState } from "react";
-import { api } from "../../shared/api.js";
-import { prettyStatus, rowsOf } from "../../shared/auth.js";
-import { useApi } from "../../shared/hooks/useApi.js";
-import { useListQuery } from "../../shared/hooks/useListQuery.js";
-import { PanelState } from "../../shared/components/PanelTable.jsx";
-import { FIELD, PanelModal, PanelToolbar, StatusBadge } from "../../shared/components/PanelKit.jsx";
-import { ROLE_SCOPES, rowId, statusOptions } from "../../shared/lib/panel.js";
+import { useState } from "react";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { Link } from "react-router-dom";
+import { MoreHorizontal, Plus, Shield } from "lucide-react";
+import { api } from "../../shared/api/index.js";
+import { keys } from "../../shared/api/keys.js";
+import { listQueryOptions } from "../../shared/api/queryClient.js";
+import { useUrlTableState } from "../../shared/hooks/useUrlTableState.js";
+import { useCan } from "../../shared/context/AuthContext.jsx";
+import {
+  Alert,
+  Badge,
+  Button,
+  ConfirmDialog,
+  DataTable,
+  DropdownMenu,
+  EmptyState,
+  FilterBar,
+  IconButton,
+  MenuItem,
+  MenuSeparator,
+  PageHeader,
+  RelativeTime,
+  toast,
+} from "../../shared/ui/index.js";
+import { TenantFilter, TenantLink, useTenantScope } from "./lib/tenantScope.jsx";
+
+const B = "/super-admin/roles";
+
+/** Holder count for a role (non-deleted users; same rule as the backend's ROLE_IN_USE check). */
+export function useRoleHolders(roleId, options = {}) {
+  return useQuery({
+    queryKey: keys.users.custom("count", "role", roleId),
+    queryFn: () => api.withTenant(null).listUsers({ roleId, limit: 1 }),
+    select: (r) => r?.meta?.total ?? 0,
+    enabled: Boolean(roleId),
+    ...options,
+  });
+}
+
+/** Delete with holder count up front and ROLE_IN_USE handling. */
+export function DeleteRoleDialog({ role, open, onOpenChange, onDeleted }) {
+  const qc = useQueryClient();
+  const known = typeof role?.usersCount === "number";
+  const holders = useRoleHolders(open && !known ? role?._id : null);
+  const [inUse, setInUse] = useState(null);
+  if (!role) return null;
+  const count = known ? role.usersCount : holders.data;
+  return (
+    <ConfirmDialog
+      open={open}
+      onOpenChange={(o) => {
+        if (!o) setInUse(null);
+        onOpenChange(o);
+      }}
+      title={`Delete role “${role.name}”?`}
+      description="This can’t be undone. Users must be moved to another role first."
+      confirmLabel="Delete role"
+      tone="danger"
+      typedConfirmation={role.slug}
+      onConfirm={async () => {
+        try {
+          await api.withTenant(null).deleteRole(role._id);
+        } catch (err) {
+          if (err?.code === "ROLE_IN_USE") setInUse(err.message);
+          throw err;
+        }
+        await qc.invalidateQueries({ queryKey: keys.roles.all });
+        toast.success(`Role “${role.name}” deleted`);
+        onDeleted?.();
+      }}
+    >
+      {!known && holders.isPending ? null : count > 0 || inUse ? (
+        <Alert tone="warning" title={`${count ?? "Some"} user${count === 1 ? "" : "s"} hold this role`}>
+          {inUse || "The server will refuse the delete while anyone holds it."}{" "}
+          <Link className="font-medium underline" to={`/super-admin/users?roleId=${role._id}`}>
+            Review holders
+          </Link>
+        </Alert>
+      ) : (
+        <p className="text-ui-sm text-fg-muted">Nobody holds this role.</p>
+      )}
+    </ConfirmDialog>
+  );
+}
 
 export default function Roles() {
-  const { q, setQ, filters, setFilter, reset, query } = useListQuery();
-  const { data, error, loading, reload } = useApi(() => api.listRoles(query), [query]);
-  const permissionApi = useApi(() => api.listPermissions(), []);
-  const rows = rowsOf(data);
-  const [open, setOpen] = useState(false);
-  const [openId, setOpenId] = useState("");
-  const [msg, setMsg] = useState("");
-  const [busy, setBusy] = useState(false);
-
-  const grouped = useMemo(() => {
-    const map = {};
-    const list = Array.isArray(permissionApi.data)
-      ? permissionApi.data.map((p) => p.key || `${p.resource}.${p.action}`).filter(Boolean)
-      : [];
-    const keys = list.length ? list : [];
-    keys.forEach((key) => {
-      const group = key.split(".")[0] || "other";
-      (map[group] ||= []).push(key);
-    });
-    return map;
-  }, [permissionApi.data]);
-
-  async function create(e) {
-    e.preventDefault();
-    setMsg("");
-    setBusy(true);
-    const form = new FormData(e.currentTarget);
-    const permissions = form.getAll("permissions").map(String);
-    try {
-      await api.createRole({
-        name: String(form.get("name") || "").trim(),
-        description: String(form.get("description") || "").trim(),
-        permissions,
-      });
-      setOpen(false);
-      reload();
-    } catch (err) {
-      setMsg(err.message);
-    } finally {
-      setBusy(false);
-    }
-  }
+  const can = useCan();
+  const scope = useTenantScope();
+  const table = useUrlTableState({ filters: ["scope", "system"], defaults: { limit: 20 } });
+  const q = useQuery({
+    queryKey: keys.roles.list({ ...table.query, tenant: scope.tenantId }),
+    queryFn: () => scope.api.listRoles(table.query),
+    ...listQueryOptions,
+  });
+  const [deleting, setDeleting] = useState(null);
+  const newHref = scope.tenantId ? `${B}/new?tenant=${scope.tenantId}` : `${B}/new`;
+  const add = can("roles.create") ? (
+    <Button variant="primary" leftIcon={Plus} to={newHref}>
+      New role
+    </Button>
+  ) : null;
 
   return (
-    <div>
-      <div className="flex flex-wrap items-end justify-between gap-3">
-        <div>
-          <h1 className="text-2xl font-extrabold">Roles & permissions</h1>
-          <p className="mt-1 text-sm text-msr-muted">Inspect system roles or create a tenant-scoped role.</p>
-        </div>
-        <button type="button" onClick={() => setOpen(true)} className="rounded-xl bg-msr-navy px-4 py-2 text-sm font-bold text-white">
-          New role
-        </button>
-      </div>
-      <PanelToolbar
-        search={q}
-        onSearch={setQ}
-        searchPlaceholder="Role name or slug"
-        onReset={reset}
-        filters={[
+    <>
+      <PageHeader
+        title="Roles"
+        description="System roles are defined in code. Stores can have custom roles built from the permission catalog."
+        breadcrumbs={[{ label: "Console", to: "/super-admin" }, { label: "Roles" }]}
+        primaryAction={add}
+      />
+      <DataTable
+        storageKey="sa-roles"
+        exportFilename="roles"
+        table={table}
+        data={q.data?.data}
+        meta={q.data?.meta}
+        loading={q.isPending}
+        fetching={q.isFetching}
+        error={q.error}
+        onRetry={q.refetch}
+        rowHref={(r) => `${B}/${r._id}`}
+        toolbar={
+          <FilterBar
+            table={table}
+            searchPlaceholder="Name, slug, description"
+            facets={[
+              {
+                key: "scope",
+                title: "Scope",
+                options: [
+                  { value: "staff", label: "Store staff" },
+                  { value: "buyer", label: "Buyer" },
+                  { value: "tenant", label: "Any store role" },
+                  { value: "platform", label: "Platform" },
+                ],
+              },
+              { key: "system", title: "Type", options: [{ value: "true", label: "System" }, { value: "false", label: "Custom" }] },
+            ]}
+          >
+            <TenantFilter value={scope.tenantId} onChange={scope.setTenant} />
+          </FilterBar>
+        }
+        columns={[
           {
-            key: "scope",
-            label: "Scope",
-            value: filters.scope || "",
-            onChange: (value) => setFilter("scope", value),
-            options: statusOptions(ROLE_SCOPES),
+            id: "name",
+            header: "Role",
+            primary: true,
+            accessorKey: "name",
+            cell: (r) => (
+              <span className="grid min-w-0">
+                <span className="truncate">{r.name}</span>
+                <span className="truncate font-mono text-ui-xs font-normal text-fg-subtle">{r.slug}</span>
+              </span>
+            ),
+          },
+          {
+            id: "type",
+            header: "Type",
+            cell: (r) => (r.isSystem ? <Badge tone="neutral">System</Badge> : <Badge tone="info">Custom</Badge>),
+            csv: (r) => (r.isSystem ? "system" : "custom"),
+            mobile: "meta",
+          },
+          { id: "scope", header: "Scope", cell: (r) => (r.scope === "platform" ? <Badge tone="accent">Platform</Badge> : "Store"), csv: (r) => r.scope, mobile: "meta" },
+          { id: "owner", header: "Owner", cell: (r) => (r.tenantId ? <TenantLink tenant={r.tenantId} /> : <span className="text-fg-subtle">All stores</span>), csv: (r) => r.tenantId?.name || "", mobile: "meta" },
+          {
+            id: "holders",
+            header: "Users",
+            align: "right",
+            accessorFn: (r) => r.usersCount ?? null,
+            cell: (r) =>
+              typeof r.usersCount === "number" ? (
+                <Link to={`/super-admin/users?roleId=${r._id}`} className="relative z-[1] tabular-nums hover:underline">
+                  {r.usersCount.toLocaleString("en-IN")}
+                </Link>
+              ) : (
+                <span className="text-fg-subtle">—</span>
+              ),
+            mobile: "meta",
+          },
+          { id: "perms", header: "Permissions", align: "right", accessorFn: (r) => ((r.permissions || []).includes("*") ? "All" : (r.permissions || []).length) },
+          { id: "description", header: "Description", accessorFn: (r) => r.description || null, mobile: "subtitle", defaultHidden: true },
+          { id: "updated", header: "Updated", cell: (r) => <RelativeTime value={r.updatedAt} />, csv: (r) => r.updatedAt, defaultHidden: true },
+          {
+            id: "actions",
+            header: <span className="sr-only">Actions</span>,
+            hideable: false,
+            csv: false,
+            align: "right",
+            width: 48,
+            mobile: "hidden",
+            cell: (r) => (
+              <DropdownMenu trigger={<IconButton icon={MoreHorizontal} label={`Actions for ${r.name}`} size="sm" />}>
+                <MenuItem to={`${B}/${r._id}`}>{r.isSystem ? "View" : "Edit"}</MenuItem>
+                <MenuItem to={`/super-admin/users?roleId=${r._id}`}>View holders</MenuItem>
+                {!r.isSystem && can("roles.delete") ? (
+                  <>
+                    <MenuSeparator />
+                    <MenuItem tone="danger" onSelect={() => setDeleting(r)}>
+                      Delete role
+                    </MenuItem>
+                  </>
+                ) : null}
+              </DropdownMenu>
+            ),
           },
         ]}
+        emptyState={table.activeCount ? undefined : <EmptyState icon={Shield} title="No roles" description="Create a custom role for a store." action={add} />}
       />
-      {msg ? <p className="mt-3 text-sm text-msr-danger">{msg}</p> : null}
-      <PanelState loading={loading && !data} error={error} empty={!rows.length} emptyText="No roles match these filters.">
-        <div className="mt-4 grid gap-4 md:grid-cols-2 xl:grid-cols-3">
-          {rows.map((row) => {
-            const id = rowId(row);
-            const openRow = openId === id;
-            const count = row.permissions?.includes("*") ? "All" : row.permissions?.length || 0;
-            return (
-              <div key={id} className={`rounded-xl bg-white p-3 shadow-sm ${openRow ? "bg-[#eef0ff] ring-2 ring-msr-navy" : ""}`}>
-                <div className="flex items-start justify-between gap-2">
-                  <div>
-                    <p className="text-xs uppercase tracking-wide text-msr-muted">{row.scope || "tenant"}</p>
-                    <h2 className="mt-1 font-bold">{row.name}</h2>
-                  </div>
-                  {row.isSystem ? <StatusBadge value="active" /> : null}
-                </div>
-                <p className="mt-2 font-mono text-xs text-msr-muted">{row.slug}</p>
-                <p className="mt-2 text-sm text-msr-muted">
-                  {count} permissions{row.tenantId?.name ? ` · ${row.tenantId.name}` : ""}
-                </p>
-                {row.description ? <p className="mt-2 text-sm text-msr-muted">{row.description}</p> : null}
-                <button type="button" onClick={() => setOpenId(openRow ? "" : id)} className="mt-3 text-xs font-bold text-msr-purple">
-                  {openRow ? "Hide permissions" : "View permissions"}
-                </button>
-                {openRow ? (
-                  <div className="mt-3 flex flex-wrap gap-1">
-                    {(row.permissions || []).map((perm) => (
-                      <span key={perm} className="rounded-full bg-msr-bg px-2 py-0.5 font-mono text-[10px] text-msr-muted">
-                        {perm}
-                      </span>
-                    ))}
-                  </div>
-                ) : null}
-              </div>
-            );
-          })}
-        </div>
-      </PanelState>
-      {open ? (
-        <PanelModal title="Create role" onClose={() => setOpen(false)}>
-          <form className="grid gap-3" onSubmit={create}>
-            <input name="name" required placeholder="Role name" className={FIELD} />
-            <input name="description" placeholder="Description" className={FIELD} />
-            <p className="text-xs font-semibold text-msr-muted">Permissions</p>
-            <div className="max-h-64 overflow-y-auto rounded-xl border border-msr-border p-3">
-              {Object.entries(grouped).map(([group, keys]) => (
-                <fieldset key={group} className="mb-3">
-                  <legend className="text-xs font-bold uppercase text-msr-muted">{prettyStatus(group)}</legend>
-                  <div className="mt-1 grid gap-1">
-                    {keys.map((key) => (
-                      <label key={key} className="flex items-center gap-2 text-sm">
-                        <input type="checkbox" name="permissions" value={key} />
-                        <span className="font-mono text-xs">{key}</span>
-                      </label>
-                    ))}
-                  </div>
-                </fieldset>
-              ))}
-              {!Object.keys(grouped).length ? <p className="text-sm text-msr-muted">No permission catalog loaded.</p> : null}
-            </div>
-            {msg ? <p className="text-sm text-msr-danger">{msg}</p> : null}
-            <button disabled={busy} className="rounded-xl bg-msr-navy py-2.5 font-bold text-white disabled:opacity-50">
-              {busy ? "Creating…" : "Create role"}
-            </button>
-          </form>
-        </PanelModal>
-      ) : null}
-    </div>
+      <DeleteRoleDialog role={deleting} open={Boolean(deleting)} onOpenChange={(o) => !o && setDeleting(null)} />
+    </>
   );
 }

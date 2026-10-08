@@ -1,58 +1,55 @@
-import { prettyStatus } from "../auth.js";
+/**
+ * Legacy panel kit — thin wrappers over shared/ui so un-migrated pages keep compiling and get the
+ * new look, accessibility (real dialogs, ARIA tabs) and dark mode. New code: import from shared/ui.
+ */
+import { useId, useRef } from "react";
+import { useLocation, useNavigate } from "react-router-dom";
+import { ArrowLeft } from "lucide-react";
+import { cn } from "../ui/cn.js";
+import { controlClass } from "../ui/form.jsx";
+import { Button } from "../ui/Button.jsx";
+import { StatusPill } from "../ui/Badge.jsx";
+import { Dialog } from "../ui/Dialog.jsx";
+import { Pagination } from "../ui/nav.jsx";
+import { useDocumentTitle } from "../hooks/useDocumentTitle.js";
 
-export const FIELD =
-  "w-full rounded-lg border border-msr-border bg-white px-2.5 py-1.5 text-[13px] outline-none focus:border-msr-navy";
+export const FIELD = cn(controlClass, "h-9 py-1.5 [&:is(textarea)]:h-auto");
 
-const TONE = {
-  active: "bg-emerald-50 text-msr-success",
-  published: "bg-emerald-50 text-msr-success",
-  delivered: "bg-emerald-50 text-msr-success",
-  paid: "bg-emerald-50 text-msr-success",
-  trial: "bg-indigo-50 text-msr-navy",
-  confirmed: "bg-indigo-50 text-msr-navy",
-  shipped: "bg-indigo-50 text-msr-navy",
-  assigned: "bg-indigo-50 text-msr-navy",
-  out_for_delivery: "bg-indigo-50 text-msr-navy",
-  pending: "bg-amber-50 text-[#b45309]",
-  processing: "bg-amber-50 text-[#b45309]",
-  review: "bg-amber-50 text-[#b45309]",
-  waiting_customer: "bg-amber-50 text-[#b45309]",
-  unassigned: "bg-amber-50 text-[#b45309]",
-  ready_to_ship: "bg-amber-50 text-[#b45309]",
-  suspended: "bg-red-50 text-msr-danger",
-  locked: "bg-red-50 text-msr-danger",
-  cancelled: "bg-red-50 text-msr-danger",
-  refunded: "bg-red-50 text-msr-danger",
-  failed: "bg-red-50 text-msr-danger",
-  unpublished: "bg-slate-100 text-msr-muted",
-  draft: "bg-slate-100 text-msr-muted",
-  archived: "bg-slate-100 text-msr-muted",
-  closed: "bg-slate-100 text-msr-muted",
-  resolved: "bg-slate-100 text-msr-muted",
-};
-
-export function StatusBadge({ value }) {
-  if (!value) return <span className="text-msr-muted">—</span>;
-  return (
-    <span className={`inline-flex rounded-full px-2 py-0.5 text-[11px] font-bold ${TONE[value] || "bg-msr-bg text-msr-muted"}`}>
-      {prettyStatus(value)}
-    </span>
-  );
+export function StatusBadge({ value, domain }) {
+  return <StatusPill status={value} domain={domain} />;
 }
 
+/** Accessible tab strip (role=tablist, arrow keys). Content is rendered by the page. */
 export function PanelTabs({ tabs, value, onChange }) {
+  const id = useId();
+  const refs = useRef([]);
+  function onKeyDown(e, index) {
+    const dir = e.key === "ArrowRight" ? 1 : e.key === "ArrowLeft" ? -1 : 0;
+    if (!dir && e.key !== "Home" && e.key !== "End") return;
+    e.preventDefault();
+    const next = e.key === "Home" ? 0 : e.key === "End" ? tabs.length - 1 : (index + dir + tabs.length) % tabs.length;
+    refs.current[next]?.focus();
+    onChange(tabs[next].id);
+  }
   return (
-    <div className="mt-3 flex gap-1 overflow-x-auto rounded-lg bg-white p-1 shadow-sm">
-      {tabs.map((tab) => {
+    <div role="tablist" className="mt-3 flex w-fit max-w-full gap-1 overflow-x-auto rounded-md bg-surface-sunken p-1 no-scrollbar">
+      {tabs.map((tab, i) => {
         const active = tab.id === value;
         return (
           <button
             key={tab.id}
+            ref={(el) => (refs.current[i] = el)}
+            id={`${id}-${tab.id}`}
             type="button"
+            role="tab"
+            aria-selected={active}
+            tabIndex={active ? 0 : -1}
+            onKeyDown={(e) => onKeyDown(e, i)}
             onClick={() => onChange(tab.id)}
-            className={`shrink-0 rounded-md px-3 py-1.5 text-[13px] font-semibold ${
-              active ? "bg-msr-navy text-white" : "text-msr-muted hover:bg-msr-bg hover:text-msr-navy"
-            }`}
+            className={cn(
+              "shrink-0 rounded-sm px-3 py-1 text-ui-sm font-medium transition-colors",
+              active ? "bg-surface text-fg shadow-xs" : "text-fg-muted hover:text-fg"
+            )}
           >
             {tab.label}
           </button>
@@ -62,18 +59,65 @@ export function PanelTabs({ tabs, value, onChange }) {
   );
 }
 
-export function PanelToolbar({ search, onSearch, searchPlaceholder = "Search", filters = [], onReset, extra }) {
+export function PanelHeader({ title, subtitle, action }) {
+  useDocumentTitle(typeof title === "string" ? title : null);
   return (
-    <div className="mt-3 rounded-xl bg-white p-2.5 shadow-sm">
+    <div className="flex flex-wrap items-end justify-between gap-3">
+      <div className="min-w-0">
+        <h1 className="text-title font-semibold tracking-tight text-fg">{title}</h1>
+        {subtitle ? <p className="mt-1 text-ui-sm text-fg-muted">{subtitle}</p> : null}
+      </div>
+      {action ? <div className="flex flex-wrap items-center gap-2">{action}</div> : null}
+    </div>
+  );
+}
+
+export function PanelPrimary({ children, onClick, to, type = "button", disabled }) {
+  return (
+    <Button variant="primary" onClick={onClick} to={to} type={type} disabled={disabled}>
+      {children}
+    </Button>
+  );
+}
+
+export function PanelBack({ to, label = "Back to list" }) {
+  const navigate = useNavigate();
+  const location = useLocation();
+  return (
+    <Button
+      variant="ghost"
+      size="sm"
+      leftIcon={ArrowLeft}
+      className="-ml-2 mb-2"
+      onClick={() => {
+        if (location.key !== "default") navigate(-1);
+        else navigate(to);
+      }}
+    >
+      {label}
+    </Button>
+  );
+}
+
+function chipLabel(filter) {
+  const match = (filter.options || []).find((opt) => opt.value === filter.value);
+  return match?.label || filter.value;
+}
+
+export function PanelToolbar({ search, onSearch, searchPlaceholder = "Search", filters = [], onReset, extra, chips = false }) {
+  const active = chips ? filters.filter((filter) => filter.value) : [];
+  const searchOn = chips && String(search || "").trim();
+  return (
+    <div className="mt-3 rounded-lg border border-border bg-surface p-3 shadow-xs" role="search">
       <div className="flex flex-wrap items-end gap-2">
         {onSearch ? (
-          <label className="grid min-w-[200px] flex-1 gap-1 text-xs font-semibold text-msr-muted">
+          <label className="grid min-w-[200px] flex-1 gap-1 text-ui-xs font-medium text-fg-muted">
             Search
-            <input value={search} onChange={(e) => onSearch(e.target.value)} placeholder={searchPlaceholder} className={FIELD} />
+            <input type="search" value={search} onChange={(e) => onSearch(e.target.value)} placeholder={searchPlaceholder} className={FIELD} />
           </label>
         ) : null}
         {filters.map((filter) => (
-          <label key={filter.key} className="grid min-w-[140px] gap-1 text-xs font-semibold text-msr-muted">
+          <label key={filter.key} className="grid min-w-[140px] gap-1 text-ui-xs font-medium text-fg-muted">
             {filter.label}
             {filter.type === "date" ? (
               <input type="date" value={filter.value} onChange={(e) => filter.onChange(e.target.value)} className={FIELD} />
@@ -90,110 +134,71 @@ export function PanelToolbar({ search, onSearch, searchPlaceholder = "Search", f
           </label>
         ))}
         {onReset ? (
-          <button type="button" onClick={onReset} className="text-[13px] font-semibold text-msr-purple">
+          <Button variant="ghost" size="md" onClick={onReset}>
             Reset
-          </button>
+          </Button>
         ) : null}
         {extra}
       </div>
+      {searchOn || active.length ? (
+        <div className="mt-2 flex flex-wrap gap-1.5">
+          {searchOn ? (
+            <button type="button" onClick={() => onSearch?.("")} className="rounded-full bg-primary-soft px-2 py-0.5 text-ui-xs font-medium text-primary-soft-fg">
+              Search: {search.trim()} ×
+            </button>
+          ) : null}
+          {active.map((filter) => (
+            <button
+              key={filter.key}
+              type="button"
+              onClick={() => filter.onChange("")}
+              className="rounded-full bg-primary-soft px-2 py-0.5 text-ui-xs font-medium text-primary-soft-fg"
+            >
+              {filter.label}: {chipLabel(filter)} ×
+            </button>
+          ))}
+        </div>
+      ) : null}
     </div>
   );
-}
-
-function pageWindow(current, pages) {
-  const width = 5;
-  let start = Math.max(1, current - 2);
-  let end = Math.min(pages, start + width - 1);
-  start = Math.max(1, end - width + 1);
-  const list = [];
-  for (let n = start; n <= end; n += 1) list.push(n);
-  return list;
 }
 
 export function PanelPager({ meta, page, onPage }) {
-  const total = meta?.total || 0;
-  const pages = Math.max(meta?.pages || 0, total ? 1 : 0);
-  const limit = meta?.limit || 20;
-  const current = meta?.page || page || 1;
-  if (!total) return null;
-  const from = (current - 1) * limit + 1;
-  const to = Math.min(total, current * limit);
-  const numbers = pageWindow(current, pages);
+  if (!meta?.total) return null;
+  return <Pagination className="mt-3" meta={meta} page={meta?.page || page} onPageChange={onPage} />;
+}
+
+export function PanelConfirm({ title, message, confirmLabel = "Confirm", danger = false, busy = false, onConfirm, onClose, children }) {
   return (
-    <div className="mt-3 flex flex-wrap items-center justify-between gap-2">
-      <p className="text-[12px] text-msr-muted">
-        {from}–{to} of {total}
-      </p>
-      <div className="flex items-center gap-1">
-        <button
-          type="button"
-          disabled={current <= 1}
-          onClick={() => onPage(current - 1)}
-          className="rounded-md border border-msr-border bg-white px-2 py-1 text-[12px] font-semibold disabled:opacity-40"
-        >
-          Prev
-        </button>
-        {numbers[0] > 1 ? (
-          <button
-            type="button"
-            onClick={() => onPage(1)}
-            className="min-w-7 rounded-md border border-msr-border bg-white px-2 py-1 text-[12px] font-semibold text-msr-navy"
-          >
-            1
-          </button>
-        ) : null}
-        {numbers[0] > 2 ? <span className="px-0.5 text-[12px] text-msr-muted">…</span> : null}
-        {numbers.map((n) => (
-          <button
-            key={n}
-            type="button"
-            onClick={() => onPage(n)}
-            className={`min-w-7 rounded-md px-2 py-1 text-[12px] font-semibold ${
-              n === current ? "bg-msr-navy text-white" : "border border-msr-border bg-white text-msr-navy"
-            }`}
-          >
-            {n}
-          </button>
-        ))}
-        {numbers[numbers.length - 1] < pages - 1 ? <span className="px-0.5 text-[12px] text-msr-muted">…</span> : null}
-        {numbers[numbers.length - 1] < pages ? (
-          <button
-            type="button"
-            onClick={() => onPage(pages)}
-            className="min-w-7 rounded-md border border-msr-border bg-white px-2 py-1 text-[12px] font-semibold text-msr-navy"
-          >
-            {pages}
-          </button>
-        ) : null}
-        <button
-          type="button"
-          disabled={current >= pages}
-          onClick={() => onPage(current + 1)}
-          className="rounded-md border border-msr-border bg-white px-2 py-1 text-[12px] font-semibold disabled:opacity-40"
-        >
-          Next
-        </button>
-      </div>
-    </div>
+    <Dialog
+      open
+      onOpenChange={(open) => !open && onClose?.()}
+      title={title}
+      description={message}
+      size="sm"
+      busy={busy}
+      footer={
+        <>
+          <Button onClick={onClose} disabled={busy}>
+            Cancel
+          </Button>
+          <Button variant={danger ? "danger" : "primary"} loading={busy} onClick={onConfirm}>
+            {confirmLabel}
+          </Button>
+        </>
+      }
+    >
+      {children ? <div className="grid gap-2">{children}</div> : null}
+    </Dialog>
   );
 }
 
-export function PanelModal({ title, onClose, children }) {
+/** Always-open dialog (render it conditionally). Backdrop clicks don't close it (forms inside). */
+export function PanelModal({ title, onClose, children, wide = false }) {
   return (
-    <div className="fixed inset-0 z-50 grid place-items-center bg-black/40 p-3" onClick={onClose}>
-      <div
-        className="msr-pane max-h-[88dvh] w-full max-w-lg overflow-y-auto rounded-xl bg-white p-4 text-[13px] shadow-xl"
-        onClick={(e) => e.stopPropagation()}
-      >
-        <div className="flex items-start justify-between gap-3">
-          <h2 className="text-base font-bold">{title}</h2>
-          <button type="button" onClick={onClose} className="text-[12px] text-msr-muted">
-            Close
-          </button>
-        </div>
-        <div className="mt-3 grid gap-2 [&_button[type=submit]]:rounded-lg [&_button[type=submit]]:py-2 [&_button[type=submit]]:text-[13px]">{children}</div>
-      </div>
-    </div>
+    <Dialog open onOpenChange={(open) => !open && onClose?.()} title={title} size={wide ? "lg" : "md"} dirty>
+      <div className="grid gap-2 text-ui-sm">{children}</div>
+    </Dialog>
   );
 }
 
@@ -206,7 +211,10 @@ export function ActionBtn({ children, onClick, danger, disabled }) {
         e.stopPropagation();
         onClick?.(e);
       }}
-      className={`rounded-md px-1.5 py-0.5 text-[12px] font-semibold ${danger ? "text-msr-danger" : "text-msr-purple"} disabled:opacity-40`}
+      className={cn(
+        "relative z-[1] rounded-sm px-1.5 py-0.5 text-ui-xs font-medium disabled:opacity-40",
+        danger ? "text-danger-fg hover:bg-danger-soft" : "text-primary-soft-fg hover:bg-primary-soft"
+      )}
     >
       {children}
     </button>

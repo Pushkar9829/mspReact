@@ -1,307 +1,76 @@
-import { useState } from "react";
-import { api } from "../../shared/api.js";
-import { inr } from "../../shared/lib/format.js";
-import { prettyStatus, rowsOf } from "../../shared/auth.js";
-import { useApi } from "../../shared/hooks/useApi.js";
-import { useListQuery } from "../../shared/hooks/useListQuery.js";
-import { PanelState, PanelTable } from "../../shared/components/PanelTable.jsx";
-import { ActionBtn, FIELD, PanelModal, PanelPager, PanelTabs, PanelToolbar, StatusBadge } from "../../shared/components/PanelKit.jsx";
-import { COUPON_STATUSES, OFFER_STATUSES, metaOf, rowId, statusOptions } from "../../shared/lib/panel.js";
+import { useCallback, useState } from "react";
+import { useSearchParams } from "react-router-dom";
+import { BadgePercent, ListChecks, Plus, TicketPercent } from "lucide-react";
+import { useCan } from "../../shared/context/AuthContext.jsx";
+import { PermissionGate } from "../../shared/components/PermissionGate.jsx";
+import { Button, PageHeader, TabPanel, Tabs } from "../../shared/ui/index.js";
+import { OfferForm, OffersTab } from "./offers/OffersTab.jsx";
+import { CouponForm, CouponsTab } from "./offers/CouponsTab.jsx";
+import { PriceListForm, PriceListsTab } from "./offers/PriceListsTab.jsx";
 
-function pad(n) {
-  return String(n).padStart(2, "0");
-}
-
-function isoInput(daysFromNow) {
-  const d = new Date();
-  d.setDate(d.getDate() + daysFromNow);
-  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
-}
-
-const APPLIES_TO = [
-  { id: "all", label: "All purchases (single + bulk)" },
-  { id: "regular", label: "Single purchases only" },
-  { id: "bulk", label: "Bulk purchases only" },
+const TABS = [
+  { value: "offers", label: "Offers", icon: BadgePercent },
+  { value: "coupons", label: "Coupons", icon: TicketPercent },
+  { value: "price-lists", label: "Price lists", icon: ListChecks },
 ];
 
-function appliesLabel(value) {
-  if (value === "regular") return "Single only";
-  if (value === "bulk") return "Bulk only";
-  return "All";
-}
-
-function AppliesToField() {
-  return (
-    <label className="grid gap-1 text-xs font-semibold text-msr-muted">
-      Applies to
-      <select name="appliesTo" className={FIELD} defaultValue="all">
-        {APPLIES_TO.map((o) => (
-          <option key={o.id} value={o.id}>
-            {o.label}
-          </option>
-        ))}
-      </select>
-    </label>
-  );
-}
-
-function localToIso(value) {
-  const d = new Date(value);
-  return Number.isNaN(d.getTime()) ? value : d.toISOString();
-}
+const CREATE = {
+  offers: { label: "Create offer", perm: "offers.create", kind: "offer" },
+  coupons: { label: "Create coupon", perm: "coupons.create", kind: "coupon" },
+  "price-lists": { label: "Create price list", perm: "pricing.create", kind: "priceList" },
+};
 
 export default function Offers() {
-  const offersQuery = useListQuery();
-  const couponsQuery = useListQuery();
-  const offers = useApi(() => api.listOffers(offersQuery.query), [offersQuery.query]);
-  const coupons = useApi(() => api.listCoupons(couponsQuery.query), [couponsQuery.query]);
-  const offerRows = rowsOf(offers.data);
-  const couponRows = rowsOf(coupons.data);
-  const [tab, setTab] = useState("offers");
-  const [open, setOpen] = useState("");
-  const [msg, setMsg] = useState("");
-  const [busy, setBusy] = useState("");
+  const can = useCan();
+  const [params] = useSearchParams();
+  const tab = TABS.some((t) => t.value === params.get("tab")) ? params.get("tab") : "offers";
+  const create = CREATE[tab];
+  // { kind: "offer" | "coupon" | "priceList", row: object | null, n: number } — `n` remounts the form per open.
+  const [editor, setEditor] = useState(null);
 
-  async function createOffer(e) {
-    e.preventDefault();
-    setBusy("offer");
-    setMsg("");
-    const form = new FormData(e.currentTarget);
-    try {
-      await api.createOffer({
-        name: String(form.get("name") || "").trim(),
-        type: String(form.get("type") || "percent"),
-        value: Number(form.get("value") || 0),
-        startsAt: localToIso(form.get("startsAt")),
-        endsAt: localToIso(form.get("endsAt")),
-        appliesTo: String(form.get("appliesTo") || "all"),
-        status: "draft",
-      });
-      setOpen("");
-      offers.reload();
-    } catch (err) {
-      setMsg(err.message);
-    } finally {
-      setBusy("");
-    }
-  }
-
-  async function createCoupon(e) {
-    e.preventDefault();
-    setBusy("coupon");
-    setMsg("");
-    const form = new FormData(e.currentTarget);
-    try {
-      await api.createCoupon({
-        code: String(form.get("code") || "").trim(),
-        name: String(form.get("name") || "").trim(),
-        type: String(form.get("type") || "percent"),
-        value: Number(form.get("value") || 0),
-        minCartValue: Number(form.get("minCartValue") || 0),
-        appliesTo: String(form.get("appliesTo") || "all"),
-        firstOrderOnly: Boolean(form.get("firstOrderOnly")),
-      });
-      setOpen("");
-      coupons.reload();
-    } catch (err) {
-      setMsg(err.message);
-    } finally {
-      setBusy("");
-    }
-  }
-
-  async function approve(id) {
-    setBusy(id);
-    setMsg("");
-    try {
-      await api.approveOffer(id);
-      offers.reload();
-    } catch (err) {
-      setMsg(err.message);
-    } finally {
-      setBusy("");
-    }
-  }
-
-  async function disable(id) {
-    setBusy(id);
-    setMsg("");
-    try {
-      await api.disableCoupon(id);
-      coupons.reload();
-    } catch (err) {
-      setMsg(err.message);
-    } finally {
-      setBusy("");
-    }
-  }
+  const open = useCallback((kind, row = null) => setEditor((e) => ({ kind, row, n: (e?.n || 0) + 1 })), []);
+  const close = useCallback(() => setEditor(null), []);
+  const onEditOffer = useCallback((row) => open("offer", row), [open]);
+  const onEditCoupon = useCallback((row) => open("coupon", row), [open]);
+  const onEditPriceList = useCallback((row) => open("priceList", row), [open]);
+  const onCreateOffer = useCallback(() => open("offer"), [open]);
+  const onCreateCoupon = useCallback(() => open("coupon"), [open]);
+  const onCreatePriceList = useCallback(() => open("priceList"), [open]);
 
   return (
-    <div>
-      <div className="flex flex-wrap items-end justify-between gap-3">
-        <div>
-          <h1 className="text-2xl font-extrabold">Offers</h1>
-          <p className="mt-1 text-sm text-msr-muted">
-            Catalog promotions and checkout coupons, for single purchases, bulk purchases or both.
-          </p>
-        </div>
-        <button
-          type="button"
-          onClick={() => setOpen(tab === "coupons" ? "coupon" : "offer")}
-          className="rounded-lg bg-msr-navy px-3 py-1.5 text-[13px] font-semibold text-white"
-        >
-          {tab === "coupons" ? "New coupon" : "New offer"}
-        </button>
-      </div>
-      {msg ? <p className="mt-3 text-sm text-msr-danger">{msg}</p> : null}
-      <PanelTabs
-        value={tab}
-        onChange={setTab}
-        tabs={[
-          { id: "offers", label: "Catalog offers" },
-          { id: "coupons", label: "Coupons" },
-        ]}
+    <>
+      <PageHeader
+        title="Offers & coupons"
+        description={
+          can("pricing.approve")
+            ? "Automatic offers, checkout coupons and B2B contract prices for your store."
+            : "Automatic offers, checkout coupons and B2B contract prices. Offers and price lists you activate are sent for approval."
+        }
+        breadcrumbs={[{ label: "Store admin", to: "/tenant" }, { label: "Offers & coupons" }]}
+        primaryAction={
+          <PermissionGate perm={create.perm}>
+            <Button variant="primary" leftIcon={Plus} onClick={() => open(create.kind)}>
+              {create.label}
+            </Button>
+          </PermissionGate>
+        }
       />
 
-      {tab === "offers" ? (
-      <>
-      <PanelToolbar
-        search={offersQuery.q}
-        onSearch={offersQuery.setQ}
-        searchPlaceholder="Offer name"
-        onReset={offersQuery.reset}
-        filters={[
-          {
-            key: "status",
-            label: "Status",
-            value: offersQuery.filters.status || "",
-            onChange: (value) => offersQuery.setFilter("status", value),
-            options: statusOptions(OFFER_STATUSES),
-          },
-        ]}
-      />
-      <PanelState loading={offers.loading && !offers.data} error={offers.error} empty={!offerRows.length} emptyText="No offers match these filters.">
-        <PanelTable
-          rows={offerRows}
-          rowKey={rowId}
-          columns={[
-            { key: "name", label: "Name", render: (row) => <span className="font-semibold">{row.name}</span> },
-            { key: "type", label: "Type", render: (row) => prettyStatus(row.type) },
-            { key: "value", label: "Value", render: (row) => (row.type === "percent" ? `${row.value}%` : inr(row.value)) },
-            { key: "appliesTo", label: "Applies to", render: (row) => appliesLabel(row.appliesTo) },
-            { key: "status", label: "Status", render: (row) => <StatusBadge value={row.status} /> },
-            {
-              key: "actions",
-              label: "",
-              render: (row) =>
-                row.status === "draft" || row.status === "pending_approval" ? (
-                  <ActionBtn disabled={busy === rowId(row)} onClick={() => approve(rowId(row))}>
-                    Activate
-                  </ActionBtn>
-                ) : null,
-            },
-          ]}
-        />
-      </PanelState>
-      <PanelPager meta={metaOf(offers.data)} page={offersQuery.page} onPage={offersQuery.setPage} />
-      </>
-      ) : (
-      <>
-      <PanelToolbar
-        search={couponsQuery.q}
-        onSearch={couponsQuery.setQ}
-        searchPlaceholder="Code or name"
-        onReset={couponsQuery.reset}
-        filters={[
-          {
-            key: "status",
-            label: "Status",
-            value: couponsQuery.filters.status || "",
-            onChange: (value) => couponsQuery.setFilter("status", value),
-            options: statusOptions(COUPON_STATUSES),
-          },
-        ]}
-      />
-      <PanelState loading={coupons.loading && !coupons.data} error={coupons.error} empty={!couponRows.length} emptyText="No coupons match these filters.">
-        <PanelTable
-          rows={couponRows}
-          rowKey={rowId}
-          columns={[
-            { key: "code", label: "Code", render: (row) => <span className="font-semibold">{row.code}</span> },
-            { key: "name", label: "Name" },
-            { key: "value", label: "Value", render: (row) => (row.type === "percent" ? `${row.value}%` : inr(row.value)) },
-            {
-              key: "appliesTo",
-              label: "Applies to",
-              render: (row) => `${appliesLabel(row.appliesTo)}${row.firstOrderOnly ? " · first order" : ""}`,
-            },
-            { key: "status", label: "Status", render: (row) => <StatusBadge value={row.status} /> },
-            {
-              key: "actions",
-              label: "",
-              render: (row) =>
-                row.status !== "disabled" ? (
-                  <ActionBtn danger disabled={busy === rowId(row)} onClick={() => disable(rowId(row))}>
-                    Disable
-                  </ActionBtn>
-                ) : null,
-            },
-          ]}
-        />
-      </PanelState>
-      <PanelPager meta={metaOf(coupons.data)} page={couponsQuery.page} onPage={couponsQuery.setPage} />
-      </>
-      )}
+      <Tabs urlParam="tab" tabs={TABS} aria-label="Offers, coupons and price lists">
+        <TabPanel value="offers">
+          <OffersTab onCreate={onCreateOffer} onEdit={onEditOffer} />
+        </TabPanel>
+        <TabPanel value="coupons">
+          <CouponsTab onCreate={onCreateCoupon} onEdit={onEditCoupon} />
+        </TabPanel>
+        <TabPanel value="price-lists">
+          <PriceListsTab onCreate={onCreatePriceList} onEdit={onEditPriceList} />
+        </TabPanel>
+      </Tabs>
 
-      {open === "offer" ? (
-        <PanelModal title="Create offer" onClose={() => setOpen("")}>
-          <form className="grid gap-3" onSubmit={createOffer}>
-            <input name="name" required placeholder="Offer name" className={FIELD} />
-            <select name="type" className={FIELD} defaultValue="percent">
-              <option value="percent">Percent</option>
-              <option value="fixed">Fixed</option>
-              <option value="flash">Flash</option>
-            </select>
-            <input name="value" type="number" min="0" required placeholder="Value" className={FIELD} />
-            <label className="grid gap-1 text-xs font-semibold text-msr-muted">
-              Starts
-              <input name="startsAt" type="datetime-local" required defaultValue={isoInput(0)} className={FIELD} />
-            </label>
-            <label className="grid gap-1 text-xs font-semibold text-msr-muted">
-              Ends
-              <input name="endsAt" type="datetime-local" required defaultValue={isoInput(7)} className={FIELD} />
-            </label>
-            <AppliesToField />
-            {msg ? <p className="text-sm text-msr-danger">{msg}</p> : null}
-            <button disabled={busy === "offer"} className="rounded-xl bg-msr-navy py-2.5 font-bold text-white disabled:opacity-50">
-              {busy === "offer" ? "Creating…" : "Create offer"}
-            </button>
-          </form>
-        </PanelModal>
-      ) : null}
-      {open === "coupon" ? (
-        <PanelModal title="Create coupon" onClose={() => setOpen("")}>
-          <form className="grid gap-3" onSubmit={createCoupon}>
-            <input name="code" required placeholder="CODE" className={FIELD} />
-            <input name="name" required placeholder="Coupon name" className={FIELD} />
-            <select name="type" className={FIELD} defaultValue="percent">
-              <option value="percent">Percent</option>
-              <option value="fixed">Fixed</option>
-            </select>
-            <input name="value" type="number" min="0" required placeholder="Value" className={FIELD} />
-            <input name="minCartValue" type="number" min="0" placeholder="Min cart value" className={FIELD} />
-            <AppliesToField />
-            <label className="flex items-center gap-2 text-sm">
-              <input name="firstOrderOnly" type="checkbox" />
-              First order only (new customers of your store)
-            </label>
-            {msg ? <p className="text-sm text-msr-danger">{msg}</p> : null}
-            <button disabled={busy === "coupon"} className="rounded-xl bg-msr-navy py-2.5 font-bold text-white disabled:opacity-50">
-              {busy === "coupon" ? "Creating…" : "Create coupon"}
-            </button>
-          </form>
-        </PanelModal>
-      ) : null}
-    </div>
+      {editor?.kind === "offer" ? <OfferForm key={editor.n} open offer={editor.row} onClose={close} /> : null}
+      {editor?.kind === "coupon" ? <CouponForm key={editor.n} open coupon={editor.row} onClose={close} /> : null}
+      {editor?.kind === "priceList" ? <PriceListForm key={editor.n} open priceList={editor.row} onClose={close} /> : null}
+    </>
   );
 }

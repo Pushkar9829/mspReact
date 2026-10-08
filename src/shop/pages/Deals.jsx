@@ -1,47 +1,48 @@
-import { useApi } from "../../shared/hooks/useApi.js";
-import { loadTaggedProducts } from "../lib/loadTagged.js";
-import ProductCard, { PRODUCT_GRID, ProductCardSkeleton } from "../components/ProductCard.jsx";
-import { EmptyState, PageBanner } from "../components/shopUi.jsx";
-import { Tag } from "lucide-react";
-import { Link } from "react-router-dom";
-import { buttonClass } from "../components/shopUi.jsx";
+/**
+ * /deals — products the sellers tagged as deals (server search, tag=deal), filters in the URL.
+ * A saffron strip under the header explains what a deal is; the live product count is in the header.
+ */
+import { Layers, Percent, ReceiptText, RefreshCw, Ticket } from "lucide-react";
+import { Button } from "../components/ui/index.js";
+import { ProductListing } from "./discovery/ProductListing.jsx";
+import { ListingHero } from "./discovery/ListingHero.jsx";
+
+const FIXED = { tag: "deal" };
+
+const INTRO = (
+  <ListingHero
+    tone="saffron"
+    icon={Percent}
+    heading="Limited-period prices, set by sellers"
+    points={[
+      { icon: ReceiptText, text: "The price you see is what you pay, incl. GST" },
+      { icon: RefreshCw, text: "Prices and stock update live" },
+    ]}
+    actions={
+      <>
+        <Button to="/account/coupons" variant="secondary" size="sm" leftIcon={Ticket}>
+          Coupons
+        </Button>
+        <Button to="/bulk" variant="secondary" size="sm" leftIcon={Layers}>
+          Bulk prices
+        </Button>
+      </>
+    }
+  />
+);
 
 export default function Deals() {
-  const { data, error, loading } = useApi(() => loadTaggedProducts("deal"), []);
-  const list = data || [];
   return (
-    <div className="pb-12">
-      <div className="msr-gutter pt-6">
-        <PageBanner
-          kicker="Limited time"
-          title="Best deals"
-          text="Fresh daily discounts on fast-moving FMCG brands."
-        />
-      </div>
-      <div className="msr-gutter mt-6">
-        {loading ? (
-          <div className={PRODUCT_GRID}>
-            {Array.from({ length: 8 }, (_, i) => (
-              <ProductCardSkeleton key={i} />
-            ))}
-          </div>
-        ) : null}
-        {error ? <p className="text-sm text-msr-danger">{error}</p> : null}
-        {!loading && !list.length ? (
-          <EmptyState icon={Tag} title="No live deals right now" text="Check back later or browse the full catalog.">
-            <Link to="/category/all" className={buttonClass()}>
-              Browse products
-            </Link>
-          </EmptyState>
-        ) : null}
-        {list.length ? (
-          <div className={PRODUCT_GRID}>
-            {list.map((p) => (
-              <ProductCard key={p.id} product={p} />
-            ))}
-          </div>
-        ) : null}
-      </div>
-    </div>
+    <ProductListing
+      fixed={FIXED}
+      hide={["category"]}
+      title="Deals"
+      kicker="Today on the marketplace"
+      description="Deal prices run for a limited period and can end without notice. Bulk slabs on a product can bring the per-unit price lower still."
+      breadcrumbs={[{ label: "Home", to: "/" }, { label: "Deals" }]}
+      intro={INTRO}
+      emptyTitle="No deals running right now"
+      emptyDescription="Sellers post new deals often. Check bulk prices meanwhile — they’re usually the best per-unit rates."
+    />
   );
 }

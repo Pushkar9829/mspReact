@@ -1,156 +1,120 @@
 import { useState } from "react";
-import { api } from "../../shared/api.js";
-import { rowsOf } from "../../shared/auth.js";
-import { useApi } from "../../shared/hooks/useApi.js";
-import { useListQuery } from "../../shared/hooks/useListQuery.js";
-import { PanelState, PanelTable } from "../../shared/components/PanelTable.jsx";
-import { FIELD, PanelModal, PanelPager, PanelToolbar } from "../../shared/components/PanelKit.jsx";
-import { metaOf, rowId } from "../../shared/lib/panel.js";
+import { useSearchParams } from "react-router-dom";
+import { Download, Plus, SlidersHorizontal } from "lucide-react";
+import { api, describeExport } from "../../shared/api/index.js";
+import { useCan } from "../../shared/context/AuthContext.jsx";
+import { PermissionGate } from "../../shared/components/PermissionGate.jsx";
+import { Button, PageHeader, TabPanel, Tabs, Tooltip, toast } from "../../shared/ui/index.js";
+import { PREFIX } from "./inventory/lib.js";
+import { StockTab } from "./inventory/StockTab.jsx";
+import { TransactionsTab } from "./inventory/TransactionsTab.jsx";
+import { ReservationsTab } from "./inventory/ReservationsTab.jsx";
+import { WarehouseDialog, WarehousesTab } from "./inventory/WarehousesTab.jsx";
+import { AdjustDialog } from "./inventory/StockDialogs.jsx";
+
+const EXPORT_NOTE = "Exports up to 1,000 stock rows matching the Stock tab’s search and filters (warehouse, variant, low stock). Archived rows are excluded.";
 
 export default function Inventory() {
-  const { q, setQ, page, setPage, filters, setFilter, reset, query } = useListQuery();
-  const { data, error, loading, reload } = useApi(() => api.listInventory(query), [query]);
-  const warehouses = useApi(() => api.listWarehouses(), []);
-  const rows = rowsOf(data);
-  const warehouseRows = Array.isArray(warehouses.data) ? warehouses.data : rowsOf(warehouses.data);
-  const [adjust, setAdjust] = useState(null);
-  const [reason, setReason] = useState("inward");
-  const [msg, setMsg] = useState("");
-  const [busy, setBusy] = useState(false);
+  const can = useCan();
+  const [params, setParams] = useSearchParams();
+  const tab = params.get("tab") || "stock";
   const [exporting, setExporting] = useState(false);
+  const [adjustOpen, setAdjustOpen] = useState(false);
+  const [whDialog, setWhDialog] = useState({ open: false, warehouse: null });
 
-  async function saveAdjust(e) {
-    e.preventDefault();
-    if (!adjust) return;
-    setBusy(true);
-    setMsg("");
-    const form = new FormData(e.currentTarget);
-    const nextReason = String(form.get("reason") || "inward");
-    const qty = Number(form.get("qty") || 0);
-    if (nextReason === "damage" && qty <= 0) {
-      setMsg("Enter a positive number of damaged units.");
-      setBusy(false);
-      return;
-    }
-    try {
-      await api.adjustInventory({
-        warehouseId: adjust.warehouseId?._id || adjust.warehouseId,
-        variantId: adjust.variantId?._id || adjust.variantId,
-        reason: nextReason,
-        qty,
-        note: String(form.get("note") || ""),
-      });
-      setAdjust(null);
-      reload();
-    } catch (err) {
-      setMsg(err.message);
-    } finally {
-      setBusy(false);
-    }
+  const tabs = [
+    { value: "stock", label: "Stock" },
+    { value: "transactions", label: "Transactions" },
+    { value: "reservations", label: "Reservations" },
+    ...(can("warehouses.view") ? [{ value: "warehouses", label: "Warehouses" }] : []),
+  ];
+
+  /** Jump to another tab with that table's filters replaced (push, so Back returns here). */
+  function goTo(nextTab, prefix, filters) {
+    setParams((prev) => {
+      const p = new URLSearchParams(prev);
+      if (nextTab === "stock") p.delete("tab");
+      else p.set("tab", nextTab);
+      [...p.keys()].filter((k) => prefix && k.startsWith(prefix)).forEach((k) => p.delete(k));
+      Object.entries(filters).forEach(([k, v]) => (v ? p.set(`${prefix}${k}`, String(v)) : p.delete(`${prefix}${k}`)));
+      p.delete(`${prefix}page`);
+      return p;
+    });
   }
 
   async function exportCsv() {
     setExporting(true);
-    setMsg("");
     try {
-      await api.exportReport("inventory");
+      const query = {};
+      ["warehouseId", "variantId", "lowStock", "q"].forEach((k) => {
+        const v = params.get(`${PREFIX.stock}${k}`);
+        if (v) query[k] = v;
+      });
+      const res = await api.exportReport("inventory", query);
+      const info = describeExport(res, "Inventory export");
+      (info.truncated ? toast.warning : toast.success)(info.title, { description: info.description, duration: info.truncated ? 10_000 : undefined });
     } catch (err) {
-      setMsg(err.message);
+      toast.error(err?.message || "Export failed", { description: err?.requestId ? `Reference: ${err.requestId}` : undefined });
     } finally {
       setExporting(false);
     }
   }
 
-  return (
-    <div>
-      <div className="flex flex-wrap items-end justify-between gap-3">
-        <div>
-          <h1 className="text-2xl font-extrabold">Inventory</h1>
-          <p className="mt-1 text-sm text-msr-muted">Search SKUs, filter by warehouse, and adjust stock.</p>
-        </div>
-        <button type="button" onClick={exportCsv} disabled={exporting} className="rounded-xl border border-msr-border px-4 py-2 text-sm font-bold disabled:opacity-50">
-          {exporting ? "Exporting…" : "Export CSV"}
-        </button>
-      </div>
-      <PanelToolbar
-        search={q}
-        onSearch={setQ}
-        searchPlaceholder="SKU or product name"
-        onReset={reset}
-        filters={[
-          {
-            key: "warehouseId",
-            label: "Warehouse",
-            value: filters.warehouseId || "",
-            onChange: (value) => setFilter("warehouseId", value),
-            options: warehouseRows.map((row) => ({ value: rowId(row), label: row.name || row.code })),
-          },
-          {
-            key: "lowStock",
-            label: "Stock",
-            value: filters.lowStock || "",
-            onChange: (value) => setFilter("lowStock", value),
-            options: [{ value: "true", label: "Low stock only" }],
-          },
-        ]}
-      />
-      {msg ? <p className="mt-3 text-sm text-msr-danger">{msg}</p> : null}
-      <PanelState loading={loading && !data} error={error} empty={!rows.length} emptyText="No stock rows match these filters.">
-        <PanelTable
-          rows={rows}
-          rowKey={rowId}
-          columns={[
-            { key: "sku", label: "SKU", render: (row) => <span className="font-mono text-xs">{row.sku || row.variantId?.sku}</span> },
-            { key: "product", label: "Product", render: (row) => row.variantId?.productId?.name || "—" },
-            { key: "available", label: "Available", render: (row) => row.available },
-            { key: "reserved", label: "Reserved", render: (row) => row.reserved },
-            { key: "warehouse", label: "Warehouse", render: (row) => row.warehouseId?.name || row.warehouseId?.code || "—" },
-            {
-              key: "actions",
-              label: "",
-              render: (row) => (
-                <button
-                  type="button"
-                  className="text-xs font-bold text-msr-purple"
-                  onClick={() => {
-                    setReason("inward");
-                    setAdjust(row);
-                  }}
-                >
-                  Adjust
-                </button>
-              ),
-            },
-          ]}
-        />
-      </PanelState>
-      <PanelPager meta={metaOf(data)} page={page} onPage={setPage} />
-      {adjust ? (
-        <PanelModal title={`Adjust ${adjust.sku || adjust.variantId?.sku || "stock"}`} onClose={() => setAdjust(null)}>
-          <form className="grid gap-3" onSubmit={saveAdjust}>
-            <select name="reason" className={FIELD} value={reason} onChange={(e) => setReason(e.target.value)}>
-              <option value="inward">Inward / add</option>
-              <option value="adjustment">Adjustment</option>
-              <option value="damage">Damage</option>
-              <option value="return">Return</option>
-            </select>
-            <input
-              name="qty"
-              type="number"
-              required
-              min={reason === "damage" ? 1 : undefined}
-              step="1"
-              placeholder={reason === "damage" ? "Units damaged (positive)" : "Qty (negative reduces stock)"}
-              className={FIELD}
-            />
-            <input name="note" placeholder="Note (optional)" className={FIELD} />
-            {msg ? <p className="text-sm text-msr-danger">{msg}</p> : null}
-            <button disabled={busy} className="rounded-xl bg-msr-navy py-2.5 font-bold text-white disabled:opacity-50">
-              {busy ? "Saving…" : "Save adjustment"}
-            </button>
-          </form>
-        </PanelModal>
-      ) : null}
+  const exportButton = can("reports.export") ? (
+    <div className="flex items-center gap-2">
+      <Tooltip content={EXPORT_NOTE}>
+        <Button leftIcon={Download} onClick={exportCsv} loading={exporting} aria-describedby="inventory-export-note">
+          Export
+        </Button>
+      </Tooltip>
+      <span id="inventory-export-note" className="hidden max-w-52 text-ui-2xs leading-tight text-fg-subtle lg:block">
+        Uses the stock filters · max 1,000 rows
+      </span>
     </div>
+  ) : null;
+
+  const primary =
+    tab === "warehouses" ? (
+      <PermissionGate perm="warehouses.create">
+        <Button variant="primary" leftIcon={Plus} onClick={() => setWhDialog({ open: true, warehouse: null })}>
+          New warehouse
+        </Button>
+      </PermissionGate>
+    ) : (
+      <PermissionGate perm="inventory.adjust">
+        <Button variant="primary" leftIcon={SlidersHorizontal} onClick={() => setAdjustOpen(true)}>
+          Adjust stock
+        </Button>
+      </PermissionGate>
+    );
+
+  return (
+    <>
+      <PageHeader
+        title="Inventory"
+        description="Stock per product variant and warehouse, every movement, and the units held for carts and orders."
+        breadcrumbs={[{ label: "Store admin", to: "/tenant" }, { label: "Inventory" }]}
+        secondaryActions={exportButton}
+        primaryAction={primary}
+      />
+      <Tabs urlParam="tab" tabs={tabs} aria-label="Inventory sections">
+        <TabPanel value="stock">
+          <StockTab onViewHistory={({ variantId, warehouseId }) => goTo("transactions", PREFIX.tx, { variantId, warehouseId })} />
+        </TabPanel>
+        <TabPanel value="transactions">
+          <TransactionsTab />
+        </TabPanel>
+        <TabPanel value="reservations">
+          <ReservationsTab onShowStock={(variantId) => goTo("stock", PREFIX.stock, { variantId, warehouseId: "", lowStock: "", q: "" })} />
+        </TabPanel>
+        {can("warehouses.view") ? (
+          <TabPanel value="warehouses">
+            <WarehousesTab onEdit={(w) => setWhDialog({ open: true, warehouse: w })} onCreate={() => setWhDialog({ open: true, warehouse: null })} />
+          </TabPanel>
+        ) : null}
+      </Tabs>
+      <AdjustDialog open={adjustOpen} onOpenChange={setAdjustOpen} row={null} />
+      <WarehouseDialog open={whDialog.open} onOpenChange={(open) => setWhDialog((d) => ({ ...d, open }))} warehouse={whDialog.warehouse} />
+    </>
   );
 }

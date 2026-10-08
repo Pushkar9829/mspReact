@@ -1,0 +1,408 @@
+/*
+ * Storefront tokens: "Mandi-modern".
+ *
+ * Scope: everything here applies only while `html.shop` is set. ShopLayout and the shop-styled auth
+ * pages set it with `useShopTheme()` (src/shop/hooks/useShopTheme.js); the admin panels never do, so
+ * the admin theme (tokens.css) is untouched. The shop is light-only.
+ *
+ * Use the `shop-*` utilities in new code:
+ *   colors   bg-shop-page | bg-shop-card | bg-shop-well | bg-shop-navy | bg-shop-primary | bg-shop-primary-soft
+ *            text-shop-ink | text-shop-text | text-shop-muted | text-shop-subtle | text-shop-primary-ink
+ *            gold (bulk/business only) bg-shop-gold | bg-shop-gold-soft | text-shop-gold-ink
+ *            saffron (deals/urgency only) bg-shop-deal | bg-shop-saffron-soft | text-shop-saffron-ink
+ *            border-shop-line | border-shop-line-strong | danger/info/warning *-soft + *-ink
+ *   type     text-shop-xs 12 | -sm 13 | -base 14 | -md 16 | -lg 18 | -xl 22 | -2xl 28 | -3xl 36, font-display, font-ui, tabular-nums
+ *   radius   rounded-card 12 | rounded-control 10 | rounded-well 8 | rounded-full
+ *   shadow   flat by default; shadow-shop-hover on hover, shadow-shop-pop for popovers/sheets
+ *
+ * Legacy `*-msr-*` classes still used by older pages are re-pointed at these tokens through the
+ * semantic variables below (--primary, --fg, --bg, ...), so they pick up the new palette.
+ */
+
+html.shop {
+  color-scheme: light;
+
+  /* Mandi-modern palette */
+  --shop-ink: #0e1a2b;
+  --shop-text: #1b2433;
+  --shop-muted: #5b6474;
+  --shop-subtle: #656c79; /* smallest text; >= 4.5:1 on paper and white */
+  --shop-navy: #0b1033;
+  --shop-navy-2: #161d4d;
+  --shop-on-navy-muted: #c3c7dc;
+
+  --shop-primary: #0f7a4a;
+  --shop-primary-hover: #0b6139;
+  --shop-primary-soft: #e8f4ee;
+  --shop-primary-ink: #0b5a37;
+
+  --shop-gold: #e9b949;
+  --shop-gold-soft: #fbf3dc;
+  --shop-gold-ink: #6e4f00;
+
+  --shop-saffron: #e8590c;
+  --shop-deal: #c2410c; /* saffron dark enough for white badge text (AA) */
+  --shop-saffron-soft: #fdeee5;
+  --shop-saffron-ink: #a63c08;
+
+  --shop-page: #f7f6f2;
+  --shop-card: #ffffff;
+  --shop-well: #efede6;
+  --shop-hover: #f2f0ea;
+  --shop-line: #e6e3da;
+  --shop-line-strong: #d5d1c5;
+
+  --shop-danger: #b42318;
+  --shop-danger-soft: #fdecea;
+  --shop-danger-ink: #9a1c13;
+  --shop-warning-soft: #fdf3d8;
+  --shop-warning-ink: #7a4b00;
+  --shop-info-soft: #e7eefc;
+  --shop-info-ink: #1c44b8;
+
+  --shop-focus: #0f7a4a;
+  --shop-shadow-hover: 0 1px 2px rgb(14 26 43 / 0.06), 0 4px 12px -2px rgb(14 26 43 / 0.08);
+  --shop-shadow-pop: 0 16px 32px -8px rgb(14 26 43 / 0.2), 0 4px 10px -4px rgb(14 26 43 / 0.08);
+
+  /* Re-point the shared semantic tokens (and with them the legacy msr-* aliases) */
+  --bg: var(--shop-page);
+  --surface: var(--shop-card);
+  --surface-2: #fbfaf7;
+  --surface-hover: var(--shop-hover);
+  --surface-sunken: var(--shop-well);
+  --overlay: rgb(11 16 51 / 0.45);
+  --border: var(--shop-line);
+  --border-strong: var(--shop-line-strong);
+  --fg: var(--shop-text);
+  --fg-muted: var(--shop-muted);
+  --fg-subtle: var(--shop-subtle);
+  --primary: var(--shop-primary);
+  --primary-hover: var(--shop-primary-hover);
+  --primary-soft: var(--shop-primary-soft);
+  --primary-soft-fg: var(--shop-primary-ink);
+  --brand-gold: var(--shop-gold);
+  --success: var(--shop-primary);
+  --success-soft: var(--shop-primary-soft);
+  --success-fg: var(--shop-primary-ink);
+  --danger: var(--shop-danger);
+  --danger-soft: var(--shop-danger-soft);
+  --danger-fg: var(--shop-danger-ink);
+  --warning-soft: var(--shop-warning-soft);
+  --warning-fg: var(--shop-warning-ink);
+  --ring: var(--shop-focus);
+  --msr-navy: var(--shop-navy);
+  --msr-navy-dark: #070a24;
+  --msr-subtle: var(--shop-subtle);
+  --msr-accent-light: #3a9a6c;
+
+  /* Legacy shadows → flat */
+  --shadow-card: 0 1px 0 rgb(14 26 43 / 0.03);
+  --shadow-lift: var(--shop-shadow-hover);
+  --shadow-pop: var(--shop-shadow-pop);
+
+  /* Inter for UI and body, Plus Jakarta Sans for display */
+  --font-sans: "Inter Variable", "Inter", ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+  font-feature-settings: "cv11";
+}
+
+/* On navy surfaces the focus ring switches to gold for contrast. */
+html.shop .shop-on-navy {
+  --shop-focus: #e9b949;
+  --ring: #e9b949;
+}
+
+@theme inline {
+  --color-shop-ink: var(--shop-ink);
+  --color-shop-text: var(--shop-text);
+  --color-shop-muted: var(--shop-muted);
+  --color-shop-subtle: var(--shop-subtle);
+  --color-shop-navy: var(--shop-navy);
+  --color-shop-navy-2: var(--shop-navy-2);
+  --color-shop-on-navy-muted: var(--shop-on-navy-muted);
+  --color-shop-primary: var(--shop-primary);
+  --color-shop-primary-hover: var(--shop-primary-hover);
+  --color-shop-primary-soft: var(--shop-primary-soft);
+  --color-shop-primary-ink: var(--shop-primary-ink);
+  --color-shop-gold: var(--shop-gold);
+  --color-shop-gold-soft: var(--shop-gold-soft);
+  --color-shop-gold-ink: var(--shop-gold-ink);
+  --color-shop-saffron: var(--shop-saffron);
+  --color-shop-deal: var(--shop-deal);
+  --color-shop-saffron-soft: var(--shop-saffron-soft);
+  --color-shop-saffron-ink: var(--shop-saffron-ink);
+  --color-shop-page: var(--shop-page);
+  --color-shop-card: var(--shop-card);
+  --color-shop-well: var(--shop-well);
+  --color-shop-hover: var(--shop-hover);
+  --color-shop-line: var(--shop-line);
+  --color-shop-line-strong: var(--shop-line-strong);
+  --color-shop-danger: var(--shop-danger);
+  --color-shop-danger-soft: var(--shop-danger-soft);
+  --color-shop-danger-ink: var(--shop-danger-ink);
+  --color-shop-warning-soft: var(--shop-warning-soft);
+  --color-shop-warning-ink: var(--shop-warning-ink);
+  --color-shop-info-soft: var(--shop-info-soft);
+  --color-shop-info-ink: var(--shop-info-ink);
+
+  --shadow-shop-hover: var(--shop-shadow-hover);
+  --shadow-shop-pop: var(--shop-shadow-pop);
+}
+
+@theme {
+  --font-display: "Plus Jakarta Sans Variable", "Plus Jakarta Sans", ui-sans-serif, system-ui, sans-serif;
+  --font-ui: "Inter Variable", "Inter", ui-sans-serif, system-ui, sans-serif;
+
+  /* Shop type scale 12/13/14/16/18/22/28/36 */
+  --text-shop-xs: 0.75rem;
+  --text-shop-xs--line-height: 1rem;
+  --text-shop-sm: 0.8125rem;
+  --text-shop-sm--line-height: 1.125rem;
+  --text-shop-base: 0.875rem;
+  --text-shop-base--line-height: 1.375rem;
+  --text-shop-md: 1rem;
+  --text-shop-md--line-height: 1.5rem;
+  --text-shop-lg: 1.125rem;
+  --text-shop-lg--line-height: 1.625rem;
+  --text-shop-xl: 1.375rem;
+  --text-shop-xl--line-height: 1.875rem;
+  --text-shop-2xl: 1.75rem;
+  --text-shop-2xl--line-height: 2.25rem;
+  --text-shop-3xl: 2.25rem;
+  --text-shop-3xl--line-height: 2.625rem;
+
+  --radius-card: 12px;
+  --radius-control: 10px;
+  --radius-well: 8px;
+}
+
+/* ------------------------------------------------------------------ base layer (shop only) */
+
+@layer base {
+html.shop body {
+  background: var(--shop-page);
+  color: var(--shop-text);
+  font-family: var(--font-sans);
+}
+
+/* Zero specificity so any text-* / font-* utility wins. */
+:where(html.shop) :where(h1, h2, h3) {
+  /* No colour here: headings inherit (e.g. white on navy banners). */
+  font-family: var(--font-display);
+  letter-spacing: -0.01em;
+}
+}
+
+/* Legacy pages use font-extrabold everywhere; cap display weight at 700. */
+html.shop .font-extrabold,
+html.shop .font-black {
+  font-weight: 700;
+}
+
+/* Money and quantities line up. */
+@layer base {
+:where(html.shop) :where(.tabular, [data-money], input[type="number"]) {
+  font-variant-numeric: tabular-nums;
+}
+}
+
+/* One global focus-visible ring. Legacy `outline-none` utilities are overridden for keyboard focus. */
+html.shop :where(a, button, input, select, textarea, summary, [tabindex], [role="button"], [role="option"], [role="tab"]):focus-visible,
+html.shop .outline-none:focus-visible {
+  outline: 2px solid var(--shop-focus);
+  outline-offset: 2px;
+}
+html.shop :where(input, textarea, select, [role="combobox"]):focus-visible {
+  outline-offset: 0;
+}
+
+html.shop ::selection {
+  background: #cfe8da;
+  color: var(--shop-ink);
+}
+
+/* Scrollbars use the warm line colour. */
+html.shop {
+  scrollbar-color: var(--shop-line-strong) transparent;
+}
+html.shop::-webkit-scrollbar-thumb {
+  background: var(--shop-line-strong);
+}
+
+/* Shimmer for skeletons (respects reduced motion via tokens.css). */
+@keyframes shop-shimmer {
+  0% { background-position: -320px 0; }
+  100% { background-position: 320px 0; }
+}
+.shop-skeleton {
+  background-color: var(--shop-well);
+  background-image: linear-gradient(90deg, transparent 0, rgb(255 255 255 / 0.55) 50%, transparent 100%);
+  background-size: 320px 100%;
+  background-repeat: no-repeat;
+  animation: shop-shimmer 1.3s ease-in-out infinite;
+}
+
+/* Bottom nav space: pages add `shop-bottom-safe` padding so sticky CTAs never collide with it. */
+.shop-bottom-safe {
+  padding-bottom: calc(4rem + env(safe-area-inset-bottom));
+}
+@media (min-width: 768px) {
+  .shop-bottom-safe {
+    padding-bottom: 0;
+  }
+}
+
+/* Home hero carousel: progress fill of the active slide dot. */
+@keyframes msr-hero-progress {
+  from { width: 0; }
+  to { width: 100%; }
+}
+
+/*
+ * Home "Shop by category" bento. Plain CSS (not utility classes) so the layout can never collapse
+ * if a dev server misses newly added utilities.
+ *   phones   2 columns, feature tile full width
+ *   ≥1024px  4 columns, feature tile 2×2
+ */
+.cat-bento {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.75rem;
+}
+.cat-bento > .cat-feature {
+  grid-column: span 2;
+}
+.cat-media {
+  position: relative;
+  width: 100%;
+  aspect-ratio: 4 / 3;
+  overflow: hidden;
+}
+.cat-feature .cat-media {
+  aspect-ratio: 16 / 10;
+}
+@media (min-width: 640px) {
+  .cat-bento {
+    gap: 1rem;
+  }
+}
+@media (min-width: 1024px) {
+  .cat-bento {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
+  .cat-bento > .cat-feature {
+    grid-row: span 2;
+  }
+  .cat-feature .cat-media {
+    aspect-ratio: auto;
+    flex: 1 1 auto;
+    min-height: 16rem;
+  }
+}
+
+/* Product rails: cards sized so a whole number fit the row (no half-hidden card at the edge). */
+.rail-item {
+  flex: 0 0 calc((100% - 0.75rem) / 2.15); /* phones: 2 + a peek of the next */
+  scroll-snap-align: start;
+  min-width: 0;
+}
+@media (min-width: 640px) {
+  .rail-item { flex-basis: calc((100% - 2 * 0.75rem) / 3); }
+}
+@media (min-width: 1024px) {
+  .rail-item { flex-basis: calc((100% - 4 * 0.75rem) / 5); }
+}
+@media (min-width: 1440px) {
+  .rail-item { flex-basis: calc((100% - 5 * 0.75rem) / 6); }
+}
+
+/* Card rows that should always fill the width: 1–4 cards share the row evenly (no empty columns). */
+.fill-row {
+  display: grid;
+  gap: 1rem;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 16rem), 1fr));
+}
+
+/* Header mega-menu: open animation (plain CSS so it never depends on generated utilities). */
+@keyframes mega-in {
+  from { opacity: 0; transform: translateY(-6px); }
+  to { opacity: 1; transform: none; }
+}
+@keyframes mega-dim-in {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+.mega-panel { animation: mega-in 180ms cubic-bezier(0.22, 0.8, 0.2, 1); }
+.mega-dim { animation: mega-dim-in 180ms ease-out; }
+.mega-scroll { max-height: calc(100dvh - 9rem); overflow-y: auto; overscroll-behavior: contain; }
+@media (prefers-reduced-motion: reduce) {
+  .mega-panel, .mega-dim { animation: none; }
+}
+
+/* Category / search listing: filter rail + results. The rail sticks below the header and scrolls on
+   its own when it is taller than the screen. */
+.listing-layout {
+  display: grid;
+  gap: 1.5rem;
+  grid-template-columns: minmax(0, 1fr);
+}
+@media (min-width: 1024px) {
+  .listing-layout { grid-template-columns: 264px minmax(0, 1fr); }
+  .filter-rail {
+    position: sticky;
+    top: 7.5rem;
+    max-height: calc(100dvh - 8.5rem);
+    overflow-y: auto;
+    overscroll-behavior: contain;
+    scrollbar-width: thin;
+  }
+}
+
+/* Brand directory: letter groups flow down 1–4 columns. */
+.brand-columns { column-count: 1; column-gap: 1.25rem; }
+@media (min-width: 640px) { .brand-columns { column-count: 2; } }
+@media (min-width: 1024px) { .brand-columns { column-count: 3; } }
+@media (min-width: 1440px) { .brand-columns { column-count: 4; } }
+
+/* ---- Product detail: gallery + buy column (plain CSS so layout never depends on JIT pickup) ---- */
+.pdp-layout {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 1.5rem;
+}
+.pdp-gallery {
+  display: grid;
+  gap: 0.75rem;
+  align-self: start;
+  min-width: 0;
+}
+.pdp-thumbs {
+  order: 2;
+  display: flex;
+  gap: 0.5rem;
+  overflow-x: auto;
+}
+@media (min-width: 1024px) {
+  .pdp-layout {
+    grid-template-columns: minmax(0, 1.05fr) minmax(0, 1fr);
+    gap: 2.5rem;
+  }
+  .pdp-gallery {
+    position: sticky;
+    top: 8.5rem;
+  }
+  .pdp-gallery.has-thumbs {
+    grid-template-columns: 4rem minmax(0, 1fr);
+  }
+  .pdp-thumbs {
+    order: 0;
+    flex-direction: column;
+    overflow-x: visible;
+    overflow-y: auto;
+    max-height: 34rem;
+  }
+}
+@media (min-width: 1280px) {
+  .pdp-layout {
+    gap: 3.5rem;
+  }
+}

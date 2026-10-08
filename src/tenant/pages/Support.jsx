@@ -4,7 +4,9 @@ export default function Support() {
   return (
     <SupportInbox
       title="Support"
-      subtitle="Store inbox. Search, filter, reply, or close customer chats."
+      subtitle="Conversations with your buyers. Reply, add internal notes, assign to teammates, escalate or close."
+      breadcrumbs={[{ label: "Store admin", to: "/tenant" }, { label: "Support" }]}
+      orderHref={(id) => `/tenant/orders/${id}`}
     />
   );
 }

@@ -1,581 +1,328 @@
 import { useState } from "react";
-import { api } from "../../shared/api.js";
-import { rowsOf } from "../../shared/auth.js";
-import { inr } from "../../shared/lib/format.js";
-import { parseBulkProductCsv, readTierPricesFromForm } from "../../shared/lib/bulk.js";
-import { useApi } from "../../shared/hooks/useApi.js";
-import { useListQuery } from "../../shared/hooks/useListQuery.js";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { Archive, CheckCircle2, Download, ExternalLink, FolderTree, MoreHorizontal, Package, Pencil, Plus, RotateCcw, Send, Tag, Upload, XCircle, EyeOff } from "lucide-react";
+import { api } from "../../shared/api/index.js";
+import { keys } from "../../shared/api/keys.js";
+import { listQueryOptions } from "../../shared/api/queryClient.js";
+import { useUrlTableState } from "../../shared/hooks/useUrlTableState.js";
+import { useCan } from "../../shared/context/AuthContext.jsx";
+import { PRODUCT_STATUSES, statusOptions } from "../../shared/lib/panel.js";
+import { number } from "../../shared/lib/format.js";
+import {
+  Alert,
+  Badge,
+  Button,
+  ConfirmDialog,
+  DataTable,
+  DateTime,
+  Dialog,
+  DropdownMenu,
+  EmptyState,
+  FilterBar,
+  IconButton,
+  MenuItem,
+  MenuSeparator,
+  Money,
+  PageHeader,
+  StatusPill,
+  toast,
+} from "../../shared/ui/index.js";
 import CatalogManager from "../../shared/components/CatalogManager.jsx";
-import { PanelState, PanelTable } from "../../shared/components/PanelTable.jsx";
-import { ActionBtn, FIELD, PanelModal, PanelPager, PanelToolbar, StatusBadge } from "../../shared/components/PanelKit.jsx";
-import { PRODUCT_STATUSES, metaOf, rowId, statusOptions } from "../../shared/lib/panel.js";
+import { PermissionGate } from "../../shared/components/PermissionGate.jsx";
 
-function WholesaleFields({ defaults = {}, slabs = [] }) {
-  const seedSlabs =
-    slabs?.length > 0
-      ? slabs
-      : [
-          { minQty: 1, maxQty: 49, unitPrice: "" },
-          { minQty: 50, maxQty: 199, unitPrice: "" },
-          { minQty: 200, maxQty: null, unitPrice: "" },
-        ];
+const rowsOf = (res) => (Array.isArray(res) ? res : res?.data || []);
+
+/** Status-changing operations on a product, each mapped to its endpoint and permission. */
+const OPS = {
+  publish: { label: "Publish", perm: "products.publish", icon: Send, run: (p) => api.publishProduct(p._id), eligible: (p) => ["draft", "pending_review", "scheduled"].includes(p.status), done: "published" },
+  unpublish: { label: "Unpublish (to draft)", perm: "products.edit", icon: EyeOff, run: (p) => api.updateProduct(p._id, { status: "draft" }), eligible: (p) => p.status === "published", done: "moved to draft", tone: "danger" },
+  archive: { label: "Archive", perm: "products.delete", icon: Archive, run: (p) => api.archiveProduct(p._id), eligible: (p) => p.status !== "archived", done: "archived", tone: "danger" },
+  restore: { label: "Restore as draft", perm: "products.edit", icon: RotateCcw, run: (p) => api.updateProduct(p._id, { status: "draft" }), eligible: (p) => p.status === "archived", done: "restored as draft" },
+};
+
+const OP_COPY = {
+  publish: "Published products become visible and purchasable in your storefront right away.",
+  unpublish: "The products disappear from the storefront until they are published again. Carts holding them can’t check out.",
+  archive: "Archived products are hidden everywhere and their stock is no longer sold. You can restore them later from the Archived filter.",
+  restore: "The products come back as drafts; publish them when ready.",
+};
+
+function ProductCell({ p }) {
   return (
-    <fieldset className="rounded-xl border border-[#eceef4] p-3">
-      <legend className="px-1 text-xs font-bold uppercase tracking-[0.12em] text-msr-muted">Bulk / wholesale</legend>
-      <label className="mt-1 flex items-center gap-2 text-sm font-semibold">
-        <input name="bulkEligible" type="checkbox" defaultChecked={Boolean(defaults.bulkEligible)} className="h-4 w-4" />
-        Bulk eligible (show on Bulk Buy and enforce wholesale checkout rules)
-      </label>
-      <div className="mt-3 grid gap-3 sm:grid-cols-3">
-        <label className="block text-sm font-semibold">
-          MOQ
-          <input name="moq" type="number" min="1" defaultValue={defaults.moq || 1} className={`mt-1 font-normal ${FIELD}`} />
-        </label>
-        <label className="block text-sm font-semibold">
-          Max qty / order
-          <input
-            name="maxQty"
-            type="number"
-            min="1"
-            defaultValue={defaults.maxQty || ""}
-            placeholder="No limit"
-            className={`mt-1 font-normal ${FIELD}`}
-          />
-        </label>
-        <label className="block text-sm font-semibold">
-          Pack multiple
-          <input
-            name="packMultiple"
-            type="number"
-            min="1"
-            defaultValue={defaults.packMultiple || 1}
-            className={`mt-1 font-normal ${FIELD}`}
-          />
-        </label>
-      </div>
-      <p className="mt-2 text-xs text-msr-muted">Quantity slabs (tier prices). Leave price blank to skip a row.</p>
-      <div className="mt-2 space-y-2">
-        {seedSlabs.map((slab, i) => (
-          <div key={i} className="grid grid-cols-3 gap-2">
-            <input name="slabMin" type="number" min="1" defaultValue={slab.minQty ?? ""} placeholder="Min qty" className={FIELD} />
-            <input
-              name="slabMax"
-              type="number"
-              min="1"
-              defaultValue={slab.maxQty ?? ""}
-              placeholder="Max (blank = open)"
-              className={FIELD}
-            />
-            <input
-              name="slabPrice"
-              type="number"
-              min="0"
-              step="0.01"
-              defaultValue={slab.unitPrice ?? ""}
-              placeholder="Unit price"
-              className={FIELD}
-            />
-          </div>
-        ))}
-      </div>
-    </fieldset>
+    <span className="flex min-w-0 items-center gap-3">
+      <span className="grid size-10 shrink-0 place-items-center overflow-hidden rounded-md border border-border bg-surface-sunken">
+        {p.images?.[0] ? <img src={p.images[0]} alt="" className="size-full object-cover" loading="lazy" /> : <Package aria-hidden className="size-4 text-fg-subtle" />}
+      </span>
+      <span className="min-w-0">
+        <span className="block truncate">{p.name}</span>
+        <span className="block truncate font-mono text-ui-xs font-normal text-fg-subtle">{p.primarySku || p.sku}</span>
+      </span>
+    </span>
   );
 }
 
-function refId(value) {
-  if (!value) return "";
-  return typeof value === "object" ? String(value._id || value.id || "") : String(value);
-}
-
-
 export default function Products() {
-  const { q, setQ, page, setPage, filters, setFilter, reset, query } = useListQuery();
-  const { data, error, loading, reload } = useApi(() => api.listStaffProducts(query), [query]);
-  const categories = useApi(() => api.listCategories(), []);
-  const brands = useApi(() => api.listBrands().catch(() => []), []);
-  const warehouses = useApi(() => api.listWarehouses(), []);
-  const rows = rowsOf(data);
-  const categoryRows = rowsOf(categories.data);
-  const brandRows = rowsOf(brands.data);
-  const warehouseRows = Array.isArray(warehouses.data) ? warehouses.data : rowsOf(warehouses.data);
-  const [open, setOpen] = useState(false);
-  const [bulkOpen, setBulkOpen] = useState(false);
-  const [catalog, setCatalog] = useState("");
-  const [editing, setEditing] = useState(null);
-  const [msg, setMsg] = useState("");
-  const [busy, setBusy] = useState("");
-  const [bulkMsg, setBulkMsg] = useState("");
+  const can = useCan();
+  const queryClient = useQueryClient();
+  const table = useUrlTableState({ filters: ["status", "categoryId", "brandId", "bulkEligible"], defaults: { limit: 20 } });
+  const q = useQuery({ queryKey: keys.products.list(table.query), queryFn: () => api.listStaffProducts(table.query), ...listQueryOptions });
+  const categories = useQuery({ queryKey: keys.categories.list({}), queryFn: () => api.listCategories(), staleTime: 300_000 });
+  const brands = useQuery({ queryKey: keys.brands.list({}), queryFn: () => api.listBrands(), staleTime: 300_000, enabled: can("brands.view") });
+  const [manager, setManager] = useState(null);
+  const [pending, setPending] = useState(null); // { op, rows, clear }
+  const [report, setReport] = useState(null);
+  const [exporting, setExporting] = useState(false);
 
-  function wholesaleFromForm(form, base = {}) {
-    return {
-      ...base,
-      bulkEligible: Boolean(form.get("bulkEligible")),
-      moq: Number(form.get("moq") || base.moq || 1),
-      maxQty: form.get("maxQty") === "" ? null : Number(form.get("maxQty")),
-      packMultiple: Math.max(1, Number(form.get("packMultiple") || base.packMultiple || 1)),
-    };
-  }
-
-  async function create(e) {
-    e.preventDefault();
-    setMsg("");
-    setBusy("create");
-    const form = new FormData(e.currentTarget);
-    const warehouseId = String(form.get("warehouseId") || "");
-    const qty = Number(form.get("qty") || 0);
-    const deliveryModes = [
-      form.get("storePickup") ? "store_pickup" : null,
-      form.get("deliveryPartner") ? "delivery_partner" : null,
-    ].filter(Boolean);
-    const tierPrices = readTierPricesFromForm(form);
-    try {
-      await api.createProduct({
-        name: String(form.get("name") || "").trim(),
-        sku: String(form.get("sku") || "").trim(),
-        sellingPrice: Number(form.get("sellingPrice") || 0),
-        listPrice: Number(form.get("listPrice") || form.get("sellingPrice") || 0),
-        categoryId: String(form.get("categoryId") || "") || undefined,
-        brandId: String(form.get("brandId") || "") || undefined,
-        status: "draft",
-        easyReturn: Boolean(form.get("easyReturn")),
-        deliveryModes: deliveryModes.length ? deliveryModes : ["delivery_partner"],
-        wholesale: wholesaleFromForm(form),
-        ...(tierPrices.length ? { tierPrices } : {}),
-        ...(warehouseId ? { initialStock: { warehouseId, qty } } : {}),
-      });
-      setOpen(false);
-      reload();
-    } catch (err) {
-      setMsg(err.message);
-    } finally {
-      setBusy("");
-    }
-  }
-
-  async function publish(id) {
-    setBusy(id);
-    setMsg("");
-    try {
-      await api.publishProduct(id);
-      reload();
-    } catch (err) {
-      setMsg(err.message);
-    } finally {
-      setBusy("");
-    }
-  }
-
-  async function saveFlags(e) {
-    e.preventDefault();
-    if (!editing) return;
-    setMsg("");
-    setBusy("edit");
-    const form = new FormData(e.currentTarget);
-    const deliveryModes = [
-      form.get("storePickup") ? "store_pickup" : null,
-      form.get("deliveryPartner") ? "delivery_partner" : null,
-    ].filter(Boolean);
-    const tierPrices = readTierPricesFromForm(form);
-    try {
-      await api.updateProduct(rowId(editing), {
-        name: String(form.get("name") || "").trim() || editing.name,
-        categoryId: String(form.get("categoryId") || "") || null,
-        brandId: String(form.get("brandId") || "") || null,
-        easyReturn: Boolean(form.get("easyReturn")),
-        deliveryModes: deliveryModes.length ? deliveryModes : ["delivery_partner"],
-        sellingPrice: Number(form.get("sellingPrice") || 0),
-        listPrice: Number(form.get("listPrice") || form.get("sellingPrice") || 0),
-        availableQty: Number(form.get("availableQty") || 0),
-        wholesale: wholesaleFromForm(form, editing.wholesale || {}),
-        tierPrices,
-      });
-      setEditing(null);
-      reload();
-    } catch (err) {
-      setMsg(err.message);
-    } finally {
-      setBusy("");
-    }
-  }
-
-  async function setEnabled(row, enabled) {
-    const id = rowId(row);
-    setBusy(id);
-    setMsg("");
-    try {
-      if (enabled && row.status !== "published") await api.publishProduct(id);
-      await api.updateProduct(id, { enabled });
-      reload();
-    } catch (err) {
-      setMsg(err.message);
-    } finally {
-      setBusy("");
-    }
-  }
-
-  async function toggleBulk(row) {
-    const id = rowId(row);
-    setBusy(id);
-    setMsg("");
-    try {
-      await api.updateProduct(id, {
-        wholesale: {
-          ...(row.wholesale || {}),
-          bulkEligible: !row.wholesale?.bulkEligible,
-        },
-      });
-      reload();
-    } catch (err) {
-      setMsg(err.message);
-    } finally {
-      setBusy("");
-    }
-  }
-
-  async function archive(row) {
-    const id = rowId(row);
-    if (!window.confirm(`Delete “${row.name}”? It will be removed from the shop and moved to Archived.`)) return;
-    setBusy(id);
-    setMsg("");
-    try {
-      await api.archiveProduct(id);
-      reload();
-    } catch (err) {
-      setMsg(err.message);
-    } finally {
-      setBusy("");
-    }
-  }
-
-  async function runBulkUpload(e) {
-    e.preventDefault();
-    setBulkMsg("");
-    setBusy("bulk");
-    const form = new FormData(e.currentTarget);
-    const file = form.get("file");
-    try {
-      const text = await file.text();
-      const items = parseBulkProductCsv(text);
-      if (!items.length) throw new Error("No valid rows found. Check CSV headers.");
-      const result = await api.bulkUploadProducts(items);
-      setBulkMsg(
-        `Created ${result.created?.length || 0}, updated ${result.updated?.length || 0}` +
-          (result.errors?.length ? `, ${result.errors.length} failed` : ""),
-      );
-      if (!result.errors?.length) {
-        setBulkOpen(false);
-        reload();
+  async function runOp({ op, rows, clear }) {
+    const def = OPS[op];
+    const eligible = rows.filter(def.eligible);
+    const results = [];
+    for (const p of eligible) {
+      try {
+        await def.run(p);
+        results.push({ p, ok: true });
+      } catch (err) {
+        results.push({ p, ok: false, message: err?.message || "Failed" });
       }
+    }
+    await queryClient.invalidateQueries({ queryKey: keys.products.all });
+    const failed = results.filter((r) => !r.ok);
+    const skipped = rows.filter((r) => !eligible.includes(r));
+    if (rows.length === 1 && failed.length) throw new Error(failed[0].message);
+    if (rows.length === 1 && !failed.length && !skipped.length) {
+      toast.success(`${rows[0].name} ${def.done}`);
+    } else if (!failed.length && !skipped.length) {
+      toast.success(`${results.length} products ${def.done}`);
+    } else {
+      setReport({ label: def.label, results, skipped });
+    }
+    clear?.();
+  }
+
+  async function exportCsv() {
+    setExporting(true);
+    try {
+      const { page: _p, limit: _l, sort: _s, order: _o, ...query } = table.query;
+      const res = await api.exportProductsCsv(query);
+      toast.success("Products exported", { description: res?.filename });
     } catch (err) {
-      setBulkMsg(err.message);
+      toast.error(err?.message || "Export failed");
     } finally {
-      setBusy("");
+      setExporting(false);
     }
   }
+
+  const catOptions = rowsOf(categories.data).map((c) => ({ value: String(c._id), label: c.name }));
+  const brandOptions = rowsOf(brands.data).map((b) => ({ value: String(b._id), label: b.name }));
+
+  function rowMenu(p) {
+    const ops = Object.entries(OPS).filter(([, d]) => d.eligible(p));
+    return (
+      <DropdownMenu trigger={<IconButton icon={MoreHorizontal} size="xs" label={`Actions for ${p.name}`} />}>
+        <MenuItem icon={Pencil} to={`/tenant/products/${p._id}`}>
+          {can("products.edit") ? "Edit" : "View"}
+        </MenuItem>
+        {p.slug && p.status === "published" ? (
+          <MenuItem icon={ExternalLink} onSelect={() => window.open(`/product/${p.slug}`, "_blank", "noopener")}>
+            View in store
+          </MenuItem>
+        ) : null}
+        {ops.length ? <MenuSeparator /> : null}
+        {ops.map(([id, d]) => (
+          <MenuItem key={id} icon={d.icon} tone={d.tone} disabled={!can(d.perm)} title={!can(d.perm) ? `Requires ${d.perm}` : undefined} onSelect={() => setPending({ op: id, rows: [p] })}>
+            {d.label}
+          </MenuItem>
+        ))}
+      </DropdownMenu>
+    );
+  }
+
+  const pendingDef = pending ? OPS[pending.op] : null;
+  const pendingEligible = pending ? pending.rows.filter(pendingDef.eligible) : [];
 
   return (
-    <div>
-      <div className="flex flex-wrap items-end justify-between gap-3">
-        <div>
-          <h1 className="text-2xl font-extrabold">Products</h1>
-          <p className="mt-1 text-sm text-msr-muted">Search, filter, publish, bulk upload, or add a SKU.</p>
-        </div>
-        <div className="flex flex-wrap gap-2">
-          <button type="button" onClick={() => setCatalog("category")} className="rounded-xl border border-msr-border px-4 py-2 text-sm font-bold">
-            Categories
-          </button>
-          <button type="button" onClick={() => setCatalog("brand")} className="rounded-xl border border-msr-border px-4 py-2 text-sm font-bold">
-            Brands
-          </button>
-          <button type="button" onClick={() => setBulkOpen(true)} className="rounded-xl border border-msr-border px-4 py-2 text-sm font-bold">
-            Bulk upload
-          </button>
-          <button type="button" onClick={() => setOpen(true)} className="rounded-xl bg-msr-navy px-4 py-2 text-sm font-bold text-white">
-            New product
-          </button>
-        </div>
-      </div>
-      <PanelToolbar
-        search={q}
-        onSearch={setQ}
-        searchPlaceholder="Name, SKU, tags"
-        onReset={reset}
-        filters={[
-          {
-            key: "status",
-            label: "Status",
-            value: filters.status || "",
-            onChange: (value) => setFilter("status", value),
-            options: statusOptions(PRODUCT_STATUSES),
-          },
-          {
-            key: "categoryId",
-            label: "Category",
-            value: filters.categoryId || "",
-            onChange: (value) => setFilter("categoryId", value),
-            options: categoryRows.map((row) => ({ value: rowId(row), label: row.name })),
-          },
-          {
-            key: "bulkEligible",
-            label: "Bulk",
-            value: filters.bulkEligible || "",
-            onChange: (value) => setFilter("bulkEligible", value),
-            options: [
-              { value: "true", label: "Eligible" },
-              { value: "false", label: "Not eligible" },
-            ],
-          },
-        ]}
+    <>
+      <PageHeader
+        title="Products"
+        description="Your catalog: details, variants and prices. Stock is managed in Inventory."
+        breadcrumbs={[{ label: "Store admin", to: "/tenant" }, { label: "Products" }]}
+        secondaryActions={
+          <>
+            <DropdownMenu trigger={<Button size="sm">Catalog setup</Button>}>
+              <MenuItem icon={FolderTree} onSelect={() => setManager("category")} disabled={!can("categories.view") && !can("categories.create")}>
+                Categories
+              </MenuItem>
+              <MenuItem icon={Tag} onSelect={() => setManager("brand")} disabled={!can("brands.view")}>
+                Brands
+              </MenuItem>
+            </DropdownMenu>
+            <PermissionGate perm="products.create" mode="hide">
+              <Button size="sm" leftIcon={Upload} to="/tenant/products/import">
+                Import
+              </Button>
+            </PermissionGate>
+            <PermissionGate perm={["products.create", "products.edit"]} mode="hide">
+              <Button size="sm" leftIcon={Download} loading={exporting} onClick={exportCsv} title="Exports the products matching the current search and filters, in the import format">
+                Export
+              </Button>
+            </PermissionGate>
+          </>
+        }
+        primaryAction={
+          <PermissionGate perm="products.create">
+            <Button size="sm" variant="primary" leftIcon={Plus} to="/tenant/products/new">
+              Add product
+            </Button>
+          </PermissionGate>
+        }
       />
-      {msg ? <p className="mt-3 text-sm text-msr-danger">{msg}</p> : null}
-      <PanelState loading={loading && !data} error={error} empty={!rows.length} emptyText="No products match these filters.">
-        <PanelTable
-          rows={rows}
-          rowKey={rowId}
-          selectedKey={editing ? rowId(editing) : ""}
-          columns={[
-            { key: "name", label: "Product", render: (row) => <span className="font-semibold">{row.name}</span> },
-            { key: "sku", label: "SKU", render: (row) => <span className="font-mono text-xs">{row.primarySku || row.sku}</span> },
-            { key: "brand", label: "Brand", render: (row) => row.brandId?.name || "—" },
-            { key: "price", label: "Price", render: (row) => (row.sellingPrice != null ? inr(row.sellingPrice) : "—") },
-            { key: "stock", label: "Available", render: (row) => row.available ?? "—" },
-            {
-              key: "bulk",
-              label: "Bulk",
-              render: (row) => (
-                <ActionBtn disabled={busy === rowId(row)} onClick={() => toggleBulk(row)}>
-                  {row.wholesale?.bulkEligible ? "On" : "Off"}
-                </ActionBtn>
-              ),
-            },
-            { key: "limit", label: "Max qty", render: (row) => row.wholesale?.maxQty || "—" },
-            { key: "slabs", label: "Slabs", render: (row) => (row.tierPrices?.length ? row.tierPrices.length : "—") },
-            { key: "pack", label: "Pack step", render: (row) => row.wholesale?.packMultiple || 1 },
-            {
-              key: "status",
-              label: "Status",
-              render: (row) => (
-                <StatusBadge value={row.status === "published" && row.enabled === false ? "disabled" : row.status} />
-              ),
-            },
-            {
-              key: "actions",
-              label: " ",
-              render: (row) => (
-                <div className="flex flex-wrap gap-2">
-                  <ActionBtn onClick={() => setEditing(row)}>Edit</ActionBtn>
-                  <ActionBtn
-                    danger={row.enabled !== false && row.status === "published"}
-                    disabled={busy === rowId(row)}
-                    onClick={() => setEnabled(row, !(row.enabled !== false && row.status === "published"))}
-                  >
-                    {row.enabled !== false && row.status === "published" ? "Disable" : "Enable"}
-                  </ActionBtn>
-                  {row.status !== "published" ? (
-                    <ActionBtn disabled={busy === rowId(row)} onClick={() => publish(rowId(row))}>
-                      Publish
-                    </ActionBtn>
-                  ) : (
-                    <ActionBtn danger disabled={busy === rowId(row)} onClick={() => archive(row)}>
-                      Delete
-                    </ActionBtn>
-                  )}
-                </div>
-              ),
-            },
-          ]}
-        />
-      </PanelState>
-      <PanelPager meta={metaOf(data)} page={page} onPage={setPage} />
-      {open ? (
-        <PanelModal title="Create product" onClose={() => setOpen(false)}>
-          <form className="grid gap-3" onSubmit={create}>
-            <input name="name" required placeholder="Product name" className={FIELD} />
-            <input name="sku" required placeholder="SKU" className={FIELD} />
-            <input name="sellingPrice" type="number" min="0" step="0.01" required placeholder="Selling price" className={FIELD} />
-            <input name="listPrice" type="number" min="0" step="0.01" placeholder="List price (optional)" className={FIELD} />
-            <select name="categoryId" className={FIELD} defaultValue="">
-              <option value="">No category</option>
-              {categoryRows.map((row) => (
-                <option key={rowId(row)} value={rowId(row)}>
-                  {row.name}
-                </option>
-              ))}
-            </select>
-            <select name="brandId" className={FIELD} defaultValue="">
-              <option value="">No brand</option>
-              {brandRows.map((row) => (
-                <option key={rowId(row)} value={rowId(row)}>
-                  {row.name}
-                </option>
-              ))}
-            </select>
-            <select name="warehouseId" className={FIELD} defaultValue="">
-              <option value="">No opening stock</option>
-              {warehouseRows.map((row) => (
-                <option key={rowId(row)} value={rowId(row)}>
-                  {row.name || row.code}
-                </option>
-              ))}
-            </select>
-            <input name="qty" type="number" min="0" placeholder="Opening qty" className={FIELD} />
-            <WholesaleFields defaults={{ bulkEligible: true, moq: 1, packMultiple: 1 }} />
-            <label className="flex items-center gap-2 text-sm font-semibold">
-              <input name="easyReturn" type="checkbox" defaultChecked className="h-4 w-4" />
-              Easy return
-            </label>
-            <fieldset className="rounded-xl border border-[#eceef4] p-3">
-              <legend className="px-1 text-xs font-bold uppercase tracking-[0.12em] text-msr-muted">Delivery</legend>
-              <label className="mt-1 flex items-center gap-2 text-sm">
-                <input name="storePickup" type="checkbox" className="h-4 w-4" />
-                Store pickup
-              </label>
-              <label className="mt-2 flex items-center gap-2 text-sm">
-                <input name="deliveryPartner" type="checkbox" defaultChecked className="h-4 w-4" />
-                Delivery partner
-              </label>
-            </fieldset>
-            {msg ? <p className="text-sm text-msr-danger">{msg}</p> : null}
-            <button disabled={busy === "create"} className="rounded-xl bg-msr-navy py-2.5 font-bold text-white disabled:opacity-50">
-              {busy === "create" ? "Creating…" : "Create product"}
-            </button>
-          </form>
-        </PanelModal>
-      ) : null}
-      {editing ? (
-        <PanelModal title={`Edit · ${editing.name}`} onClose={() => setEditing(null)}>
-          <form className="grid gap-3" onSubmit={saveFlags}>
-            <label className="block text-sm font-semibold">
-              Product name
-              <input name="name" required maxLength={200} defaultValue={editing.name || ""} className={`mt-1 font-normal ${FIELD}`} />
-            </label>
-            <div className="grid gap-3 sm:grid-cols-2">
-              <label className="block text-sm font-semibold">
-                Category
-                <select name="categoryId" defaultValue={refId(editing.categoryId)} className={`mt-1 font-normal ${FIELD}`}>
-                  <option value="">No category</option>
-                  {categoryRows.map((row) => (
-                    <option key={rowId(row)} value={rowId(row)}>
-                      {row.name}
-                    </option>
-                  ))}
-                </select>
-              </label>
-              <label className="block text-sm font-semibold">
-                Brand
-                <select name="brandId" defaultValue={refId(editing.brandId)} className={`mt-1 font-normal ${FIELD}`}>
-                  <option value="">No brand</option>
-                  {brandRows.map((row) => (
-                    <option key={rowId(row)} value={rowId(row)}>
-                      {row.name}
-                    </option>
-                  ))}
-                </select>
-              </label>
-            </div>
-            <label className="block text-sm font-semibold">
-              Selling price
-              <input
-                name="sellingPrice"
-                type="number"
-                min="0"
-                step="0.01"
-                required
-                defaultValue={editing.sellingPrice ?? ""}
-                className={`mt-1 font-normal ${FIELD}`}
-              />
-            </label>
-            <label className="block text-sm font-semibold">
-              List price
-              <input
-                name="listPrice"
-                type="number"
-                min="0"
-                step="0.01"
-                defaultValue={editing.listPrice ?? editing.sellingPrice ?? ""}
-                className={`mt-1 font-normal ${FIELD}`}
-              />
-            </label>
-            <label className="block text-sm font-semibold">
-              Available
-              <input
-                name="availableQty"
-                type="number"
-                min="0"
-                step="1"
-                required
-                defaultValue={editing.available ?? 0}
-                className={`mt-1 font-normal ${FIELD}`}
-              />
-            </label>
-            <label className="flex items-center gap-2 text-sm font-semibold">
-              <input name="easyReturn" type="checkbox" defaultChecked={Boolean(editing.easyReturn)} className="h-4 w-4" />
-              Easy return
-            </label>
-            <WholesaleFields defaults={editing.wholesale || {}} slabs={editing.tierPrices || []} />
-            <fieldset className="rounded-xl border border-[#eceef4] p-3">
-              <legend className="px-1 text-xs font-bold uppercase tracking-[0.12em] text-msr-muted">Delivery</legend>
-              <label className="mt-1 flex items-center gap-2 text-sm">
-                <input
-                  name="storePickup"
-                  type="checkbox"
-                  defaultChecked={(editing.deliveryModes || []).includes("store_pickup")}
-                  className="h-4 w-4"
-                />
-                Store pickup
-              </label>
-              <label className="mt-2 flex items-center gap-2 text-sm">
-                <input
-                  name="deliveryPartner"
-                  type="checkbox"
-                  defaultChecked={(editing.deliveryModes || ["delivery_partner"]).includes("delivery_partner")}
-                  className="h-4 w-4"
-                />
-                Delivery partner
-              </label>
-            </fieldset>
-            {msg ? <p className="text-sm text-msr-danger">{msg}</p> : null}
-            <button disabled={busy === "edit"} className="rounded-xl bg-msr-navy py-2.5 font-bold text-white disabled:opacity-50">
-              {busy === "edit" ? "Saving…" : "Save changes"}
-            </button>
-          </form>
-        </PanelModal>
-      ) : null}
-      {bulkOpen ? (
-        <PanelModal title="Bulk upload products" onClose={() => setBulkOpen(false)}>
-          <form className="grid gap-3" onSubmit={runBulkUpload}>
-            <p className="text-sm text-msr-muted">
-              CSV headers: sku,name,sellingPrice,listPrice,moq,maxQty,packMultiple,bulkEligible,slabMin1,slabMax1,slabPrice1,...
+
+      <DataTable
+        storageKey="tenant-products"
+        exportFilename="products-page"
+        caption="Products"
+        table={table}
+        data={q.data?.data}
+        meta={q.data?.meta}
+        loading={q.isPending}
+        fetching={q.isFetching}
+        error={q.error}
+        onRetry={q.refetch}
+        rowHref={(p) => `/tenant/products/${p._id}`}
+        selectable={can(["products.publish", "products.edit", "products.delete"])}
+        bulkActions={(rows, clear) =>
+          Object.entries(OPS)
+            .filter(([, d]) => can(d.perm) && rows.some(d.eligible))
+            .map(([id, d]) => (
+              <Button key={id} size="xs" variant={d.tone === "danger" ? "danger-ghost" : "secondary"} leftIcon={d.icon} onClick={() => setPending({ op: id, rows, clear })}>
+                {d.label} ({rows.filter(d.eligible).length})
+              </Button>
+            ))
+        }
+        toolbar={
+          <FilterBar
+            table={table}
+            searchPlaceholder="Name, SKU, tag or description"
+            facets={[
+              { key: "status", title: "Status", options: statusOptions(PRODUCT_STATUSES) },
+              ...(catOptions.length ? [{ key: "categoryId", title: "Category", options: catOptions }] : []),
+              ...(brandOptions.length ? [{ key: "brandId", title: "Brand", options: brandOptions }] : []),
+              { key: "bulkEligible", title: "Wholesale", options: [{ value: "true", label: "Bulk eligible" }, { value: "false", label: "Not bulk" }] },
+            ]}
+          />
+        }
+        columns={[
+          { id: "name", header: "Product", primary: true, accessorKey: "name", cell: (p) => <ProductCell p={p} />, csv: (p) => p.name },
+          {
+            id: "status",
+            header: "Status",
+            cell: (p) => (
+              <span className="inline-flex flex-col items-start gap-0.5">
+                <StatusPill status={p.status} />
+                {p.status === "scheduled" && p.scheduledAt ? (
+                  <span className="text-ui-xs text-fg-subtle">
+                    <DateTime value={p.scheduledAt} />
+                  </span>
+                ) : null}
+                {p.enabled === false ? <Badge tone="warning">Disabled</Badge> : null}
+              </span>
+            ),
+            csv: (p) => p.status,
+            mobile: "meta",
+          },
+          { id: "category", header: "Category", accessorFn: (p) => p.categoryId?.name, mobile: "subtitle" },
+          { id: "brand", header: "Brand", accessorFn: (p) => p.brandId?.name, defaultHidden: true },
+          { id: "variants", header: "Variants", align: "right", accessorFn: (p) => p.variantsCount },
+          {
+            id: "price",
+            header: "Price",
+            align: "right",
+            cell: (p) => (
+              <span>
+                {p.variantsCount > 1 ? <span className="text-ui-xs text-fg-subtle">from </span> : null}
+                <Money value={p.sellingPrice} />
+              </span>
+            ),
+            csv: (p) => p.sellingPrice,
+            mobile: "meta",
+          },
+          {
+            id: "stock",
+            header: "Available",
+            align: "right",
+            cell: (p) => <span className={p.available === 0 ? "font-medium text-danger-fg" : undefined}>{number(p.available)}</span>,
+            csv: (p) => p.available,
+            mobile: "meta",
+          },
+          { id: "updated", header: "Updated", cell: (p) => <DateTime value={p.updatedAt} format="date" />, defaultHidden: true },
+          { id: "actions", header: <span className="sr-only">Actions</span>, align: "right", hideable: false, csv: false, cell: (p) => rowMenu(p) },
+        ]}
+        emptyState={
+          <EmptyState
+            icon={Package}
+            title={table.activeCount ? "No products match these filters" : "No products yet"}
+            description={table.activeCount ? "Try a different search or clear the filters." : "Add your first product or import your catalog from a CSV file."}
+            action={
+              table.activeCount ? (
+                <Button size="sm" onClick={table.reset}>
+                  Clear filters
+                </Button>
+              ) : can("products.create") ? (
+                <>
+                  <Button size="sm" variant="primary" to="/tenant/products/new">
+                    Add product
+                  </Button>
+                  <Button size="sm" to="/tenant/products/import">
+                    Import CSV
+                  </Button>
+                </>
+              ) : null
+            }
+          />
+        }
+      />
+
+      {manager ? <CatalogManager kind={manager} open onOpenChange={(o) => !o && setManager(null)} /> : null}
+
+      <ConfirmDialog
+        open={Boolean(pending)}
+        onOpenChange={(o) => !o && setPending(null)}
+        title={pending ? (pending.rows.length === 1 ? `${pendingDef.label}: ${pending.rows[0].name}?` : `${pendingDef.label} ${pendingEligible.length} products?`) : ""}
+        description={pending ? OP_COPY[pending.op] : ""}
+        confirmLabel={pendingDef?.label}
+        tone={pendingDef?.tone === "danger" ? "danger" : "primary"}
+        onConfirm={() => runOp(pending)}
+      >
+        {pending && pending.rows.length > pendingEligible.length ? (
+          <Alert tone="info">{pending.rows.length - pendingEligible.length} selected product(s) are not eligible and will be skipped.</Alert>
+        ) : null}
+      </ConfirmDialog>
+
+      <Dialog open={Boolean(report)} onOpenChange={(o) => !o && setReport(null)} title={report ? `${report.label}: results` : ""} footer={<Button variant="primary" onClick={() => setReport(null)}>Done</Button>}>
+        {report ? (
+          <div className="grid gap-3 text-ui-sm">
+            <p>
+              {report.results.filter((r) => r.ok).length} updated · {report.results.filter((r) => !r.ok).length} failed · {report.skipped.length} skipped
             </p>
-            <p className="text-xs text-msr-muted">
-              Set maxQty to cap how many units a buyer can purchase per line. Rows upsert by SKU; bulkEligible defaults to true.
-            </p>
-            <input name="file" type="file" accept=".csv,text/csv" required className={FIELD} />
-            {bulkMsg ? <p className="text-sm text-msr-muted">{bulkMsg}</p> : null}
-            <button disabled={busy === "bulk"} className="rounded-xl bg-msr-navy py-2.5 font-bold text-white disabled:opacity-50">
-              {busy === "bulk" ? "Uploading…" : "Upload CSV"}
-            </button>
-          </form>
-        </PanelModal>
-      ) : null}
-      {catalog ? (
-        <CatalogManager
-          kind={catalog}
-          rows={
-            catalog === "category"
-              ? [...categoryRows].sort((a, b) => Number(Boolean(b.tenantId)) - Number(Boolean(a.tenantId)))
-              : brandRows
-          }
-          canEdit={(row) => catalog !== "category" || Boolean(row.tenantId)}
-          note={catalog === "category" ? "Shared categories are managed by the platform admin; you can add your own." : ""}
-          onClose={() => setCatalog("")}
-          onChanged={() => {
-            categories.reload();
-            brands.reload();
-            reload();
-          }}
-        />
-      ) : null}
-    </div>
+            <ul className="grid max-h-80 gap-1 overflow-y-auto">
+              {report.results.map((r) => (
+                <li key={r.p._id} className="flex items-start gap-2">
+                  {r.ok ? <CheckCircle2 aria-hidden className="mt-0.5 size-4 text-success" /> : <XCircle aria-hidden className="mt-0.5 size-4 text-danger" />}
+                  <span>
+                    <span className="font-medium">{r.p.name}</span>
+                    {r.ok ? "" : ` — ${r.message}`}
+                  </span>
+                </li>
+              ))}
+              {report.skipped.map((p) => (
+                <li key={p._id} className="text-fg-muted">
+                  {p.name} — skipped (not eligible)
+                </li>
+              ))}
+            </ul>
+          </div>
+        ) : null}
+      </Dialog>
+    </>
   );
 }

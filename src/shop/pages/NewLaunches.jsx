@@ -1,46 +1,43 @@
-import { useApi } from "../../shared/hooks/useApi.js";
-import { loadTaggedProducts } from "../lib/loadTagged.js";
-import ProductCard, { PRODUCT_GRID, ProductCardSkeleton } from "../components/ProductCard.jsx";
-import { EmptyState, PageBanner, buttonClass } from "../components/shopUi.jsx";
-import { Sparkles } from "lucide-react";
-import { Link } from "react-router-dom";
+/**
+ * /new — products sellers tagged "new" (server search, tag=new). Sort and filters live in the URL;
+ * pick "Newest" in the sort menu for the latest additions first.
+ */
+import { BellRing, Package, Sparkles } from "lucide-react";
+import { Button } from "../components/ui/index.js";
+import { ProductListing } from "./discovery/ProductListing.jsx";
+import { ListingHero } from "./discovery/ListingHero.jsx";
+
+const FIXED = { tag: "new" };
+
+const INTRO = (
+  <ListingHero
+    tone="primary"
+    icon={Sparkles}
+    heading="Fresh on the shelves"
+    points={[
+      { icon: Package, text: "Pack sizes and bulk slabs are on each product" },
+      { icon: BellRing, text: "Out of stock? Ask to be told when it’s back" },
+    ]}
+    actions={
+      <Button to="/deals" variant="secondary" size="sm">
+        See today’s deals
+      </Button>
+    }
+  />
+);
 
 export default function NewLaunches() {
-  const { data, error, loading } = useApi(() => loadTaggedProducts("new"), []);
-  const list = data || [];
   return (
-    <div className="pb-12">
-      <div className="msr-gutter pt-6">
-        <PageBanner
-          kicker="Just in"
-          title="New launches"
-          text="Discover the latest products from trusted brands."
-        />
-      </div>
-      <div className="msr-gutter mt-6">
-        {loading ? (
-          <div className={PRODUCT_GRID}>
-            {Array.from({ length: 8 }, (_, i) => (
-              <ProductCardSkeleton key={i} />
-            ))}
-          </div>
-        ) : null}
-        {error ? <p className="text-sm text-msr-danger">{error}</p> : null}
-        {!loading && !list.length ? (
-          <EmptyState icon={Sparkles} title="No new launches right now" text="Browse the floor for everyday essentials.">
-            <Link to="/category/all" className={buttonClass()}>
-              Browse products
-            </Link>
-          </EmptyState>
-        ) : null}
-        {list.length ? (
-          <div className={PRODUCT_GRID}>
-            {list.map((p) => (
-              <ProductCard key={p.id} product={p} />
-            ))}
-          </div>
-        ) : null}
-      </div>
-    </div>
+    <ProductListing
+      fixed={FIXED}
+      hide={["category"]}
+      title="New launches"
+      kicker="Just added"
+      description="Products sellers have recently added to the marketplace."
+      breadcrumbs={[{ label: "Home", to: "/" }, { label: "New launches" }]}
+      intro={INTRO}
+      emptyTitle="No new launches right now"
+      emptyDescription="Sellers add new products every week. Browse everything in the meantime."
+    />
   );
 }
