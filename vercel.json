@@ -7,7 +7,7 @@
     { "source": "/api/:path*", "destination": "https://mspbackend.onrender.com/api/:path*" },
     { "source": "/uploads/:path*", "destination": "https://mspbackend.onrender.com/uploads/:path*" },
     { "source": "/socket.io/:path*", "destination": "https://mspbackend.onrender.com/socket.io/:path*" },
-    { "source": "/((?!api/|uploads/|socket\.io/|assets/).*)", "destination": "/index.html" }
+    { "source": "/(.*)", "destination": "/index.html" }
   ],
   "headers": [
     {
